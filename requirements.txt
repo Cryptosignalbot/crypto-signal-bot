@@ -1,4 +1,5 @@
 python-telegram-bot==20.3
-requests>=2.31.0
 binance-connector==3.11.0
+requests>=2.31.0
+
 
