@@ -1,7 +1,7 @@
 import logging
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler
-from binance.client import Client
+from binance.spot import Spot
 
 # Configuración del bot
 BOT_TOKEN = "7457058289:AAF-VN0UWiduteBV79VdKxgIT2yeg9wa-LQ"
@@ -21,7 +21,7 @@ logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 # Configura el cliente de Binance
-client = Client(api_key=API_KEY, api_secret=SECRET_KEY)
+client = Spot(api_key=API_KEY, api_secret=SECRET_KEY)
 
 # Función para manejar el comando /start
 async def start(update, context):
@@ -67,7 +67,7 @@ async def handle_payment(update, context):
 
     try:
         # Ejemplo de validación de pagos con Binance Pay
-        transactions = client.get_payments_history(limit=10)
+        transactions = client.account_snapshot(type="SPOT")
         if transactions:
             await query.edit_message_text("Pago recibido. Acceso habilitado a tu plan.")
         else:
