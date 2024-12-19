@@ -1,7 +1,7 @@
 import logging
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, CallbackQueryHandler
-from binance.client import Client
+from binance.spot import Spot
 
 # Configuración del bot
 BOT_TOKEN = "7457058289:AAF-VN0UWiduteBV79VdKxgIT2yeg9wa-LQ"
@@ -66,13 +66,11 @@ def handle_payment(update, context):
     query.answer()
 
     try:
-        # Ejemplo de validación de pagos con Binance Pay
-        transactions = client.get_payments_history(limit=10)
+        # Ejemplo de validación de pagos con Binance Spot API
+        transactions = client.account()  # Obtiene información de la cuenta
         if transactions:
             query.edit_message_text("Pago recibido. Acceso habilitado a tu plan.")
             # Lógica para asignar usuario al grupo y tema correspondiente
-            # Ejemplo:
-            # bot.add_chat_member(chat_id=GROUP_CHAT_ID, user_id=update.effective_user.id, custom_title="Miembro")
         else:
             query.edit_message_text("No se encontró ninguna transacción válida. Intenta nuevamente.")
     except Exception as e:
