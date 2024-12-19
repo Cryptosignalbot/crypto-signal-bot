@@ -1,8 +1,7 @@
 import logging
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, MessageHandler, Filters
-import requests
-from datetime import datetime, timedelta
+from telegram.ext import Updater, CommandHandler, CallbackQueryHandler
+from binance.client import Client
 
 # Configuración del bot
 BOT_TOKEN = "7457058289:AAF-VN0UWiduteBV79VdKxgIT2yeg9wa-LQ"
@@ -20,6 +19,9 @@ TOPICS = {
 # Configuración del logger
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Configura el cliente de Binance
+client = Client(api_key=API_KEY, api_secret=SECRET_KEY)
 
 # Función para manejar el comando /start
 def start(update, context):
@@ -63,18 +65,18 @@ def handle_payment(update, context):
     query = update.callback_query
     query.answer()
 
-    # Ejemplo de validación de pago (se debe adaptar con la API de Binance Pay)
-    headers = {"X-MBX-APIKEY": API_KEY}
-    response = requests.get("https://api.binance.com/sapi/v1/pay/transactions", headers=headers)
-    payments = response.json()
-
-    if payments.get("success"):
-        query.edit_message_text("Pago recibido. Acceso habilitado a tu plan.")
-        # Lógica para asignar usuario al grupo y tema correspondiente
-        # Ejemplo:
-        # bot.add_chat_member(chat_id=GROUP_CHAT_ID, user_id=update.effective_user.id, custom_title="Miembro")
-    else:
-        query.edit_message_text("No se pudo verificar el pago. Intenta nuevamente.")
+    try:
+        # Ejemplo de validación de pagos con Binance Pay
+        transactions = client.get_payments_history(limit=10)
+        if transactions:
+            query.edit_message_text("Pago recibido. Acceso habilitado a tu plan.")
+            # Lógica para asignar usuario al grupo y tema correspondiente
+            # Ejemplo:
+            # bot.add_chat_member(chat_id=GROUP_CHAT_ID, user_id=update.effective_user.id, custom_title="Miembro")
+        else:
+            query.edit_message_text("No se encontró ninguna transacción válida. Intenta nuevamente.")
+    except Exception as e:
+        query.edit_message_text(f"Error verificando el pago: {e}")
 
 # Configuración de recordatorios de renovación
 def send_renewal_reminder(bot, user_id, plan_name, expiry_date):
