@@ -21,7 +21,7 @@ logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 # Configura el cliente de Binance
-client = Client(api_key=API_KEY, api_secret=SECRET_KEY)
+client = Spot(api_key=API_KEY, api_secret=SECRET_KEY)
 
 # Función para manejar el comando /start
 def start(update, context):
