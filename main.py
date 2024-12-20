@@ -1,10 +1,19 @@
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import Updater, CommandHandler, CallbackQueryHandler
+import logging
+from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
-BOT_TOKEN = "TU_BOT_TOKEN"
+BOT_TOKEN = "TU_BOT_TOKEN"  # Reemplaza con tu token real
 
-# Función para el menú principal
-def menu(update, context):
+# Configuración del logger
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+)
+
+logger = logging.getLogger(__name__)
+
+# Función para el comando /menu
+async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [
             InlineKeyboardButton("🔥 Detalles Plan Fire Scalping", callback_data='fire'),
@@ -17,10 +26,10 @@ def menu(update, context):
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    update.message.reply_text("Selecciona un plan:", reply_markup=reply_markup)
+    await update.message.reply_text("Selecciona un plan:", reply_markup=reply_markup)
 
-# Función para mostrar detalles del plan
-def show_details(update, context):
+# Función para manejar detalles de los planes
+async def show_details(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     plan = query.data
     if plan == 'fire':
@@ -63,19 +72,21 @@ def show_details(update, context):
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode="Markdown")
+    await query.message.edit_text(text=text, reply_markup=reply_markup, parse_mode="Markdown")
 
-# Configuración del bot
-def main():
-    updater = Updater(BOT_TOKEN, use_context=True)
-    dp = updater.dispatcher
+# Configuración principal del bot
+async def main():
+    # Crea la aplicación
+    application = Application.builder().token(BOT_TOKEN).build()
 
-    dp.add_handler(CommandHandler("menu", menu))
-    dp.add_handler(CallbackQueryHandler(show_details, pattern='^(fire|elite|delta)$'))
-    dp.add_handler(CallbackQueryHandler(menu, pattern='^menu$'))
+    # Manejo de comandos
+    application.add_handler(CommandHandler("menu", menu))
+    application.add_handler(CallbackQueryHandler(show_details, pattern='^(fire|elite|delta)$'))
+    application.add_handler(CallbackQueryHandler(menu, pattern='^menu$'))
 
-    updater.start_polling()
-    updater.idle()
+    # Ejecuta el bot
+    await application.run_polling()
 
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())
