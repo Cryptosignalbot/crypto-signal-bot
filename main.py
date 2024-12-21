@@ -1,92 +1,105 @@
-import logging
-from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+import asyncio
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
-BOT_TOKEN = "TU_BOT_TOKEN"  # Reemplaza con tu token real
+# Token del bot de Telegram
+BOT_TOKEN = "7457058289:AAF-VN0UWiduteBV79VdKxgIT2yeg9wa-LQ"
 
-# Configuración del logger
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO
-)
-
-logger = logging.getLogger(__name__)
-
-# Función para el comando /menu
-async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# Función de inicio
+async def start(update, context):
     keyboard = [
-        [
-            InlineKeyboardButton("🔥 Detalles Plan Fire Scalping", callback_data='fire'),
-            InlineKeyboardButton("💎 Detalles Plan Elite Scalping Intradía", callback_data='elite'),
-            InlineKeyboardButton("🌊 Detalles Plan Delta Swing Trading", callback_data='delta')
-        ],
-        [
-            InlineKeyboardButton("⬅️ Volver", callback_data='back'),
-            InlineKeyboardButton("🛠️ Asistencia", url="https://t.me/tu_admin")
-        ]
+        [InlineKeyboardButton("Planes", callback_data="show_plans")],
+        [InlineKeyboardButton("Contacto con la administradora", url="https://t.me/tu_admin")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("Selecciona un plan:", reply_markup=reply_markup)
+    await update.message.reply_text(
+        "Bienvenido a Crypto Signal Bot! 🚀\n\nSelecciona una opción para continuar:",
+        reply_markup=reply_markup
+    )
 
-# Función para manejar detalles de los planes
-async def show_details(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# Función para mostrar planes
+async def show_plans(update, context):
     query = update.callback_query
-    plan = query.data
-    if plan == 'fire':
-        text = (
-            "🔥 *Plan Fire Scalping*\n\n"
-            "💵 $11/mes\n💵 $132/año\n\n"
-            "⚡ Características:\n"
-            "- Alta intensidad para traders agresivos.\n"
-            "- Diversificación en 5 criptomonedas clave.\n\n"
-            "🔗 [Más detalles en el sitio web](https://tusitio.com/fire)"
-        )
-    elif plan == 'elite':
-        text = (
-            "💎 *Plan Elite Scalping Intradía*\n\n"
-            "✅ Recomendado - 50% de descuento\n"
-            "💵 $21/mes\n💵 $126/año (antes $252)\n\n"
-            "⚡ Características:\n"
-            "- Precisión extrema: 99.10% de éxito.\n"
-            "- Diseñado para traders experimentados.\n\n"
-            "🔗 [Más detalles en el sitio web](https://tusitio.com/elite)"
-        )
-    elif plan == 'delta':
-        text = (
-            "🌊 *Plan Delta Swing Trading*\n\n"
-            "💵 $31/mes\n💵 $372/año\n\n"
-            "⚡ Características:\n"
-            "- Ideal para operaciones prolongadas.\n"
-            "- Aprovecha tendencias de mediano plazo.\n\n"
-            "🔗 [Más detalles en el sitio web](https://tusitio.com/delta)"
-        )
-    
     keyboard = [
-        [
-            InlineKeyboardButton("Mensual", callback_data=f'{plan}_monthly'),
-            InlineKeyboardButton("Anual", callback_data=f'{plan}_yearly')
-        ],
-        [
-            InlineKeyboardButton("⬅️ Volver", callback_data='menu'),
-            InlineKeyboardButton("🛠️ Asistencia", url="https://t.me/tu_admin")
-        ]
+        [InlineKeyboardButton("🔥 Fire Scalping", callback_data="fire_scalping_details")],
+        [InlineKeyboardButton("💎 Elite Scalping Intradía (Recomendado)", callback_data="elite_scalping_details")],
+        [InlineKeyboardButton("🌊 Delta Swing Trading", callback_data="delta_swing_details")],
+        [InlineKeyboardButton("↩️ Volver", callback_data="start")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await query.message.edit_text(text=text, reply_markup=reply_markup, parse_mode="Markdown")
+    await query.edit_message_text(
+        "Nuestros planes de trading:\n\n"
+        "🔥 *Plan Fire Scalping*: $17/mes o $132.60/año\n"
+        "💎 *Plan Elite Scalping Intradía*: $31/mes o $241/año (50% de descuento anual)\n"
+        "🌊 *Plan Delta Swing Trading*: $37/mes o $290/año\n",
+        parse_mode="Markdown",
+        reply_markup=reply_markup
+    )
 
-# Configuración principal del bot
+# Función para mostrar detalles de un plan
+async def plan_details(update, context):
+    query = update.callback_query
+    plan = query.data.split("_")[0]
+    details = {
+        "fire_scalping": {
+            "title": "🔥 Fire Scalping",
+            "price_monthly": "$17/mes",
+            "price_annual": "$132.60/año",
+            "description": "Estrategias rápidas para traders agresivos."
+        },
+        "elite_scalping": {
+            "title": "💎 Elite Scalping Intradía",
+            "price_monthly": "$31/mes",
+            "price_annual": "$241/año (50% de descuento)",
+            "description": "Ideal para operaciones intradía con alta precisión."
+        },
+        "delta_swing": {
+            "title": "🌊 Delta Swing Trading",
+            "price_monthly": "$37/mes",
+            "price_annual": "$290/año",
+            "description": "Enfoque relajado para operaciones sostenibles."
+        }
+    }
+    plan_data = details.get(plan, {})
+    if not plan_data:
+        await query.answer("Detalles no disponibles.", show_alert=True)
+        return
+
+    keyboard = [
+        [InlineKeyboardButton("Mensual", callback_data=f"subscribe_{plan}_monthly")],
+        [InlineKeyboardButton("Anual", callback_data=f"subscribe_{plan}_annual")],
+        [InlineKeyboardButton("↩️ Volver", callback_data="show_plans")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(
+        f"{plan_data['title']}\n\n"
+        f"{plan_data['description']}\n\n"
+        f"Precios:\n"
+        f"Mensual: {plan_data['price_monthly']}\n"
+        f"Anual: {plan_data['price_annual']}",
+        reply_markup=reply_markup
+    )
+
+# Función para suscripciones
+async def subscribe(update, context):
+    query = update.callback_query
+    plan, duration = query.data.split("_")[1:]
+    await query.answer(f"Suscripción al plan {plan} ({duration}).", show_alert=True)
+
+# Función principal
 async def main():
-    # Crea la aplicación
     application = Application.builder().token(BOT_TOKEN).build()
 
-    # Manejo de comandos
-    application.add_handler(CommandHandler("menu", menu))
-    application.add_handler(CallbackQueryHandler(show_details, pattern='^(fire|elite|delta)$'))
-    application.add_handler(CallbackQueryHandler(menu, pattern='^menu$'))
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CallbackQueryHandler(show_plans, pattern="^show_plans$"))
+    application.add_handler(CallbackQueryHandler(plan_details, pattern="^(fire_scalping|elite_scalping|delta_swing)_details$"))
+    application.add_handler(CallbackQueryHandler(subscribe, pattern="^subscribe_(fire_scalping|elite_scalping|delta_swing)_(monthly|annual)$"))
 
-    # Ejecuta el bot
     await application.run_polling()
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+    loop = asyncio.get_event_loop()
+    if not loop.is_running():
+        asyncio.run(main())
+    else:
+        loop.create_task(main())
