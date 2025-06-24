@@ -13,7 +13,9 @@ main.py – Crypto Signal Bot 🔥 gestión avanzada multi-suscripciones
 """
 from flask import Flask, request, jsonify, render_template_string
 from datetime import datetime, timedelta
-import json, pathlib, logging, requests, base64
+import json, pathlib, logging, requests, base64, os
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 from apscheduler.schedulers.background import BackgroundScheduler
 
 app = Flask(__name__)
@@ -38,12 +40,10 @@ PLANS = {
     "GRATIS_ES":        {"duration_min":  7   * 24 * 60,   "group_id_es": "-1002470074373", "group_id_en": "-1002371800315"},
     "MES_ES":           {"duration_min": 30   * 24 * 60,   "group_id_es": "-1002470074373", "group_id_en": "-1002371800315"},
     "ANIO_ES":          {"duration_min":365   * 24 * 60,   "group_id_es": "-1002470074373", "group_id_en": "-1002371800315"},
-
     # ÉLITE
     "GRATIS_ES_ELITE":  {"duration_min": 15   * 24 * 60,   "group_id_es": "-1002437381292", "group_id_en": "-1002432864193"},
     "MES_ES_ELITE":     {"duration_min": 30   * 24 * 60,   "group_id_es": "-1002437381292", "group_id_en": "-1002432864193"},
     "ANIO_ES_ELITE":    {"duration_min":365   * 24 * 60,   "group_id_es": "-1002437381292", "group_id_en": "-1002432864193"},
-
     # DELTA
     "GRATIS_ES_DELTA":  {"duration_min": 30   * 24 * 60,   "group_id_es": "-1002299713092", "group_id_en": "-1002428632182"},
     "MES_ES_DELTA":     {"duration_min": 30   * 24 * 60,   "group_id_es": "-1002299713092", "group_id_en": "-1002428632182"},
@@ -77,21 +77,59 @@ logging.basicConfig(
 )
 log = logging.getLogger("CSB")
 
+# ─── Google Sheets como base de datos ────────────────────────────────────────────────
+
+def get_sheet():
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    creds_json = json.loads(os.environ["GS_CREDENTIALS_JSON"])
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_json, scope)
+    client = gspread.authorize(creds)
+    SPREADSHEET_ID = os.environ["GS_SHEET_ID"]
+    return client.open_by_key(SPREADSHEET_ID).sheet1
 
 def load_users():
-    p = pathlib.Path(USERS_FILE)
-    return json.loads(p.read_text()) if p.exists() else {}
+    sheet = get_sheet()
+    rows = sheet.get_all_records()
+    users = {}
+    for r in rows:
+        email = r["email"]
+        stype = get_sub_type(r["plan"])
+        users.setdefault(email, {
+            "chat_id": r["chat_id"],
+            "lang":    r["lang"],
+            "suscripciones": {}
+        })
+        users[email]["suscripciones"][stype] = {
+            "plan":        r["plan"],
+            "ingreso":     r["ingreso"],
+            "expira":      r["expira"],
+            "avisado":     False,
+            "invite_link": None
+        }
+    return users
 
+def save_users(users):
+    sheet = get_sheet()
+    data = [["chat_id","email","plan","lang","ingreso","expira"]]
+    for email, info in users.items():
+        for sub in info["suscripciones"].values():
+            data.append([
+                info["chat_id"],
+                email,
+                sub["plan"],
+                info["lang"],
+                sub["ingreso"],
+                sub["expira"]
+            ])
+    sheet.clear()
+    sheet.update(data)
 
-def save_users(u):
-    pathlib.Path(USERS_FILE).write_text(json.dumps(u, indent=2))
-
+# ─── Resto del código permanece igual ────────────────────────────────────────────────
 
 def get_sub_type(plan_key):
     if plan_key.endswith('_ELITE'): return 'Élite'
     if plan_key.endswith('_DELTA'): return 'Delta'
     return 'Fire'
-
 
 def enlace_unico(group_id):
     try:
@@ -105,7 +143,6 @@ def enlace_unico(group_id):
     except Exception as e:
         log.error(f"createChatInviteLink failed: {e}")
         return None
-
 
 def check_subscriptions():
     users = load_users()
@@ -211,11 +248,9 @@ def check_subscriptions():
     if modified:
         save_users(users)
 
-
 scheduler = BackgroundScheduler()
 scheduler.add_job(func=check_subscriptions, trigger='interval', minutes=1)
 scheduler.start()
-
 
 @app.route("/revisar", methods=["GET"])
 def revisar():
