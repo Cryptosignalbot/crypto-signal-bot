@@ -130,7 +130,7 @@ def check_subscriptions():
                     text = (
                         "⏳ Tu suscripción "
                         f"{TYPE_LABELS.get(stype, stype)} expira en 24 Horas. "
-                        "Renueva tu suscripción y mantén el acceso a las señales de trading de Cripto Signal Bot. ¡No pierdas esta oportunidad!"
+                        "Renueva tu suscripción y mantén el acceso a las señales de trading de Cripto Signal Bot. ¡No pierdas esta oportunidad!"  
                     )
                 else:
                     text = (
@@ -144,7 +144,7 @@ def check_subscriptions():
                         "chat_id": cid,
                         "text": text,
                         "reply_markup": {
-                            "inline_keyboard":[[
+                            "inline_keyboard": [[
                                 {"text":"🔄 Renovar / Renew","callback_data":f"renovar_menu|{stype}"}
                             ]]
                         }
@@ -181,7 +181,7 @@ def check_subscriptions():
                         "chat_id": cid,
                         "text": text,
                         "reply_markup": {
-                            "inline_keyboard":[[
+                            "inline_keyboard": [[
                                 {"text":"🔄 Renovar / Renew","callback_data":f"renovar_menu|{stype}"}
                             ]]
                         }
@@ -405,7 +405,7 @@ As we add new cryptocurrencies, new topics will be generated automatically to pr
             ]]}
             requests.post(
                 f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                json={"chat_id": cid, "text":"🇪🇸 Español\n¡Bienvenido! Pulsa el botón para Selecciona tu idioma y comenzar con nuestras señales VIP.\n\n🇺🇸 English\nWelcome! Click the button to select your language and get started with our VIP signals.", "reply_markup": kb},
+                json={"chat_id": cid, "text":"🇪🇸 Español\n¡Bienvenido! Pulsa el botón para seleccionar tu idioma y comenzar con nuestras señales VIP.\n\n🇺🇸 English\nWelcome! Click the button to select your language and get started with our VIP signals.", "reply_markup": kb},
                 timeout=10
             )
             return jsonify({}), 200
@@ -436,7 +436,7 @@ Select your language to continue.""",
             )
             return jsonify({}), 200
 
-        # 3) /start con token de registro (original)
+        # 3) /start con token de registro
         if text.startswith("/start ") and cid:
             token = text.split(maxsplit=1)[1]
             if len(token) % 4:
@@ -451,7 +451,6 @@ Select your language to continue.""",
             if not info:
                 return jsonify({}), 200
 
-            # Guardar chat_id
             info["chat_id"] = cid
             users[email] = info
             save_users(users)
@@ -491,7 +490,7 @@ Select your language to continue.""",
 
             return jsonify({}), 200
 
-        # 4) /misdatos comando manual (original)
+        # 4) /misdatos comando manual
         if text == "/misdatos" and cid:
             kb = {"inline_keyboard":[
                 [{"text":"🇪🇸 Español","callback_data":"misdatos_lang|ES"}],
@@ -516,7 +515,8 @@ Select your language to continue.""",
                 timeout=10
             )
             return jsonify({}), 200
-        # 5) Soporte para texto libre (no comando), ignorar 🎁 VIP Gratis y 🎁 VIP Free
+
+        # 5) texto libre
         if text and not text.startswith("/") and text not in ["🎁 VIP Gratis", "🎁 VIP Free"]:
             kb = {"inline_keyboard":[[
                 {"text":"🇪🇸 Español","url":"https://t.me/CriptoSignalBotGestion_bot?start=68519f3993f15cf1aa079c62"},
@@ -533,15 +533,15 @@ Select your language to continue.""",
             )
             return jsonify({}), 200
 
-    # Callback queries (original)
+    # Callback queries
     if "callback_query" in up:
         cq   = up["callback_query"]
         data = cq.get("data", "")
         cid  = cq["from"]["id"]
         users = load_users()
 
-        # /start language selection
         if data.startswith("lang|"):
+            # /start language selection
             _, lang, email = data.split("|", 2)
             info = users.get(email)
             if not info or info.get("chat_id") != cid:
@@ -573,8 +573,8 @@ Select your language to continue.""",
             )
             return jsonify({}), 200
 
-        # misdatos idioma
         if data.startswith("misdatos_lang|"):
+            # misdatos idioma
             _, lang = data.split("|", 1)
             email = None; info = None
             for em, inf in users.items():
@@ -669,8 +669,8 @@ Select your language to continue.""",
             )
             return jsonify({}), 200
 
-        # Sub-menú renovar
-        if "callback_query" in up and data.startswith("renovar_menu|"):
+        if data.startswith("renovar_menu|"):
+            # Sub-menú renovar
             _, stype = data.split("|", 1)
             lang = next((inf.get("lang", "ES") for inf in users.values() if inf.get("chat_id") == cid), "ES")
 
@@ -731,7 +731,8 @@ Select your language to continue.""",
             )
             return jsonify({}), 200
 
-        return jsonify({}), 200
+    # ─── Siempre devolvemos algo al final para evitar None ────────────────────────────
+    return jsonify({}), 200
 
 
 # ─── Endpoint para eliminar suscripción desde WordPress ─────────────────────────────
@@ -777,6 +778,7 @@ def remove_subscription():
     save_users(users)
 
     return jsonify({"status": "ok"}), 200
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(__import__('os').environ.get("PORT", 5000)))
