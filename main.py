@@ -1,104 +1,157 @@
 # -*- coding: utf-8 -*-
 """
 main.py – Crypto Signal Bot 🔥 gestión avanzada multi-suscripciones
-– Mantiene usuarios_activos.json con varias suscripciones por usuario
-– Avisos −5 min y expulsión a 0 min (7/10/15 min según plan), sin ban
-– Mensaje a −5 min con botón “🔄 Renovar suscripción” indicando el tipo y desplegando sub-menú de renovación
-– Mensaje a 0 min con botón “🔄 Renovar suscripción” indicando el tipo y desplegando sub-menú de renovación
-– Envía imagen de bienvenida según tipo tras /start + enlace único
-– Envía mensaje de bienvenida en el grupo indicando el plan
-– Comando /misdatos muestra menú de idioma, luego datos y opción de renovar con sub-menú
-– Tabla HTML en /usuarios-activos con Chat ID, Email, Tipo, Plan, Idioma, Grupo, Ingreso, Expira, Restante
-– Comprueba cada minuto con APScheduler
+Ahora usa PostgreSQL en lugar de JSON para persistencia.
 """
+import os
+import logging
+import base64
+import requests
 from flask import Flask, request, jsonify, render_template_string
 from datetime import datetime, timedelta
-import json, pathlib, logging, requests, base64
 from apscheduler.schedulers.background import BackgroundScheduler
+import psycopg2
+import psycopg2.extras
 
 app = Flask(__name__)
 
-# ─── Health-check para mantener la app despierta ───────────────────────────────────
-@app.route('/ping', methods=['GET'])
-def ping():
-    return 'pong', 200
-
-# ───────── CONFIGURACIÓN ──────────
+# ─── CONFIG ──────────────────────────────────────────────────────────────
+DATABASE_URL      = os.environ['DATABASE_URL']
 BOT_TOKEN         = "7457058289:AAF-VN0UWiduteBV79VdKxgIT2yeg9wa-LQ"
 FIRE_IMAGE_URL    = "https://cryptosignalbot.com/wp-content/uploads/2025/02/Fire-Scalping-Senales-de-Trading-para-Ganar-Mas-en-Cripto-3.png"
 ELITE_IMAGE_URL   = "https://cryptosignalbot.com/wp-content/uploads/2025/02/ELITE-Scalping-Intradia-Senales-en-Tiempo-Real.png"
 DELTA_IMAGE_URL   = "https://cryptosignalbot.com/wp-content/uploads/2025/03/delta-swing-trading-crypto-signal.png"
 RENEWAL_URL       = "https://cryptosignalbot.com/mi-cuenta"
-USERS_FILE        = "usuarios_activos.json"
-LOG_FILE          = "csb_events.log"
 
 # Planes y sus tiempos
 PLANS = {
-    # FIRE
-    "GRATIS_ES":        {"duration_min":  7   * 24 * 60,   "group_id_es": "-1002470074373", "group_id_en": "-1002371800315"},
-    "MES_ES":           {"duration_min": 30   * 24 * 60,   "group_id_es": "-1002470074373", "group_id_en": "-1002371800315"},
-    "ANIO_ES":          {"duration_min":365   * 24 * 60,   "group_id_es": "-1002470074373", "group_id_en": "-1002371800315"},
-
-    # ÉLITE
-    "GRATIS_ES_ELITE":  {"duration_min": 15   * 24 * 60,   "group_id_es": "-1002437381292", "group_id_en": "-1002432864193"},
-    "MES_ES_ELITE":     {"duration_min": 30   * 24 * 60,   "group_id_es": "-1002437381292", "group_id_en": "-1002432864193"},
-    "ANIO_ES_ELITE":    {"duration_min":365   * 24 * 60,   "group_id_es": "-1002437381292", "group_id_en": "-1002432864193"},
-
-    # DELTA
-    "GRATIS_ES_DELTA":  {"duration_min": 30   * 24 * 60,   "group_id_es": "-1002299713092", "group_id_en": "-1002428632182"},
-    "MES_ES_DELTA":     {"duration_min": 30   * 24 * 60,   "group_id_es": "-1002299713092", "group_id_en": "-1002428632182"},
-    "ANIO_ES_DELTA":    {"duration_min":365   * 24 * 60,   "group_id_es": "-1002299713092", "group_id_en": "-1002428632182"},
+    "GRATIS_ES":        {"duration_min":   7*24*60, "group_id_es":"-1002470074373","group_id_en":"-1002371800315"},
+    "MES_ES":           {"duration_min":  30*24*60, "group_id_es":"-1002470074373","group_id_en":"-1002371800315"},
+    "ANIO_ES":          {"duration_min": 365*24*60, "group_id_es":"-1002470074373","group_id_en":"-1002371800315"},
+    "GRATIS_ES_ELITE":  {"duration_min":  15*24*60, "group_id_es":"-1002437381292","group_id_en":"-1002432864193"},
+    "MES_ES_ELITE":     {"duration_min":  30*24*60, "group_id_es":"-1002437381292","group_id_en":"-1002432864193"},
+    "ANIO_ES_ELITE":    {"duration_min": 365*24*60, "group_id_es":"-1002437381292","group_id_en":"-1002432864193"},
+    "GRATIS_ES_DELTA":  {"duration_min":  30*24*60, "group_id_es":"-1002299713092","group_id_en":"-1002428632182"},
+    "MES_ES_DELTA":     {"duration_min":  30*24*60, "group_id_es":"-1002299713092","group_id_en":"-1002428632182"},
+    "ANIO_ES_DELTA":    {"duration_min": 365*24*60, "group_id_es":"-1002299713092","group_id_en":"-1002428632182"},
 }
 
-# Etiquetas legibles
 LABELS = {
-    "GRATIS_ES":"𝐅𝐢𝐫𝐞 𝐒𝐜𝐚𝐥𝐩𝐢𝐧𝐠 𝐠𝐫𝐚𝐭𝐢𝐬 𝟕 𝐝í𝐚𝐬",
-    "MES_ES":"𝐅𝐢𝐫𝐞 𝐒𝐜𝐚𝐥𝐩𝐢𝐧𝐠 𝐦𝐞𝐧𝐬𝐮𝐚𝐥",
-    "ANIO_ES":"𝐅𝐢𝐫𝐞 𝐒𝐜𝐚𝐥𝐩𝐢𝐧𝐠 𝐚𝐧𝐮𝐚𝐥",
-    "GRATIS_ES_ELITE":"𝐄𝐋𝐈𝐓𝐄 𝐒𝐜𝐚𝐥𝐩𝐢𝐧𝐠 𝐏𝐑𝐎 𝐆𝐫𝐚𝐭𝐢𝐬 𝟏𝟓 𝐝í𝐚𝐬",
-    "MES_ES_ELITE":"𝐄𝐋𝐈𝐓𝐄 𝐒𝐜𝐚𝐥𝐩𝐢𝐧𝐠 𝐏𝐑𝐎 𝐦𝐞𝐧𝐬𝐮𝐚𝐥",
-    "ANIO_ES_ELITE":"𝐄𝐋𝐈𝐓𝐄 𝐒𝐜𝐚𝐥𝐩𝐢𝐧𝐠 𝐏𝐑𝐎 𝐚𝐧𝐮𝐚𝐥",
-    "GRATIS_ES_DELTA":"𝐃𝐄𝐋𝐓𝐀 𝐒𝐰𝐢𝐧𝐠 𝐆𝐫𝐚𝐭𝐢𝐬 𝟑𝟎 𝐝í𝐚𝐬",
-    "MES_ES_DELTA":"𝐃𝐄𝐋𝐓𝐀 𝐒𝐰𝐢𝐧𝐠 𝐦𝐞𝐧𝐬𝐮𝐚𝐥",
-    "ANIO_ES_DELTA":"𝐃𝐄𝐋𝐓𝐀 𝐒𝐰𝐢𝐧𝐠 𝐚𝐧𝐮𝐚𝐥",
+    "GRATIS_ES":"Fire gratis 7 días", "MES_ES":"Fire mensual","ANIO_ES":"Fire anual",
+    "GRATIS_ES_ELITE":"Élite gratis 15 días","MES_ES_ELITE":"Élite mensual","ANIO_ES_ELITE":"Élite anual",
+    "GRATIS_ES_DELTA":"Delta gratis 30 días","MES_ES_DELTA":"Delta mensual","ANIO_ES_DELTA":"Delta anual",
 }
 
-# Etiquetas base de planes (sin duración)
 TYPE_LABELS = {
-    "Fire":  "🔥 𝐅𝐢𝐫𝐞 𝐒𝐜𝐚𝐥𝐩𝐢𝐧𝐠",
-    "Élite": "💎 𝐄𝐋𝐈𝐓𝐄 𝐒𝐜𝐚𝐥𝐩𝐢𝐧𝐠 𝐏𝐑𝐎",
-    "Delta": "🪙 𝐃𝐄𝐋𝐓𝐀 𝐒𝐰𝐢𝐧𝐠"
+    "Fire":  "🔥 Fire Scalping",
+    "Élite": "💎 Élite Scalping PRO",
+    "Delta": "🪙 Delta Swing"
 }
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(message)s",
-    handlers=[logging.FileHandler(LOG_FILE), logging.StreamHandler()]
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 log = logging.getLogger("CSB")
 
+# ─── Helpers de DB ──────────────────────────────────────────────────────────
+def get_conn():
+    return psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+
+def init_db():
+    """Crea tablas si no existen."""
+    ddl = """
+    CREATE TABLE IF NOT EXISTS users (
+      email TEXT PRIMARY KEY,
+      nombre TEXT,
+      apellido TEXT,
+      telefono TEXT,
+      chat_id BIGINT,
+      lang TEXT,
+      pending_sub TEXT
+    );
+    CREATE TABLE IF NOT EXISTS suscripciones (
+      email TEXT REFERENCES users(email) ON DELETE CASCADE,
+      stype TEXT,
+      plan TEXT,
+      ingreso TIMESTAMPTZ,
+      expira TIMESTAMPTZ,
+      avisado BOOLEAN DEFAULT FALSE,
+      invite_link TEXT,
+      PRIMARY KEY(email, stype)
+    );
+    """
+    conn = get_conn(); cur = conn.cursor()
+    cur.execute(ddl); conn.commit()
+    cur.close(); conn.close()
 
 def load_users():
-    p = pathlib.Path(USERS_FILE)
-    return json.loads(p.read_text()) if p.exists() else {}
+    """Carga toda la info de usuarios + suscripciones en memoria."""
+    conn = get_conn(); cur = conn.cursor()
+    users = {}
+    # Usuarios
+    cur.execute("SELECT * FROM users")
+    for u in cur.fetchall():
+        users[u['email']] = dict(u)
+        users[u['email']]['suscripciones'] = {}
+    # Suscripciones
+    cur.execute("SELECT * FROM suscripciones")
+    for s in cur.fetchall():
+        stype = s['stype']
+        users[s['email']]['suscripciones'][stype] = dict(s)
+    cur.close(); conn.close()
+    return users
 
+def save_users(users):
+    """Persiste usuarios y suscripciones a la DB."""
+    conn = get_conn(); cur = conn.cursor()
+    for email, info in users.items():
+        # Upsert user
+        cur.execute("""
+            INSERT INTO users(email,nombre,apellido,telefono,chat_id,lang,pending_sub)
+            VALUES(%s,%s,%s,%s,%s,%s,%s)
+            ON CONFLICT(email) DO UPDATE
+              SET nombre=EXCLUDED.nombre,
+                  apellido=EXCLUDED.apellido,
+                  telefono=EXCLUDED.telefono,
+                  chat_id=EXCLUDED.chat_id,
+                  lang=EXCLUDED.lang,
+                  pending_sub=EXCLUDED.pending_sub;
+        """, (
+            email, info.get("nombre"), info.get("apellido"),
+            info.get("telefono"), info.get("chat_id"),
+            info.get("lang"), info.get("pending_sub")
+        ))
+        # Upsert suscripciones
+        for stype, sub in info.get("suscripciones", {}).items():
+            cur.execute("""
+                INSERT INTO suscripciones(email,stype,plan,ingreso,expira,avisado,invite_link)
+                VALUES(%s,%s,%s,%s,%s,%s,%s)
+                ON CONFLICT(email,stype) DO UPDATE
+                  SET plan=EXCLUDED.plan,
+                      ingreso=EXCLUDED.ingreso,
+                      expira=EXCLUDED.expira,
+                      avisado=EXCLUDED.avisado,
+                      invite_link=EXCLUDED.invite_link;
+            """, (
+                email, stype,
+                sub.get("plan"),
+                sub.get("ingreso"),
+                sub.get("expira"),
+                sub.get("avisado", False),
+                sub.get("invite_link")
+            ))
+    conn.commit(); cur.close(); conn.close()
 
-def save_users(u):
-    pathlib.Path(USERS_FILE).write_text(json.dumps(u, indent=2))
-
-
+# ─── Funciones de apoyo ya existentes ───────────────────────────────────────
 def get_sub_type(plan_key):
     if plan_key.endswith('_ELITE'): return 'Élite'
     if plan_key.endswith('_DELTA'): return 'Delta'
     return 'Fire'
-
 
 def enlace_unico(group_id):
     try:
         expire_ts = int((datetime.utcnow() + timedelta(hours=24)).timestamp())
         r = requests.post(
             f"https://api.telegram.org/bot{BOT_TOKEN}/createChatInviteLink",
-            json={"chat_id": group_id, "member_limit": 1, "expire_date": expire_ts},
+            json={"chat_id": group_id, "member_limit":1, "expire_date":expire_ts},
             timeout=10
         ).json()
         return r.get("result", {}).get("invite_link")
@@ -106,7 +159,7 @@ def enlace_unico(group_id):
         log.error(f"createChatInviteLink failed: {e}")
         return None
 
-
+# ─── Lógica de comprobación de suscripciones ─────────────────────────────────
 def check_subscriptions():
     users = load_users()
     now = datetime.utcnow()
@@ -114,91 +167,62 @@ def check_subscriptions():
 
     for email, info in list(users.items()):
         cid  = info.get("chat_id")
-        lang = info.get("lang", "ES")
-        subs = info.get("suscripciones", {})
+        lang = info.get("lang","ES")
+        subs = info.get("suscripciones",{})
 
         for stype, sub in list(subs.items()):
-            try:
-                exp  = datetime.fromisoformat(sub.get("expira"))
-            except:
-                continue
+            exp = datetime.fromisoformat(sub.get("expira"))
             secs = (exp - now).total_seconds()
 
-            # ─── Aviso 5 minutos ─────────────────────────────────────────
+            # Aviso 5 min
             if secs <= 300 and not sub.get("avisado", False):
-                if lang == "ES":
-                    text = (
-                        "⏳ Tu suscripción "
-                        f"{TYPE_LABELS.get(stype, stype)} expira en 24 Horas. "
-                        "Renueva tu suscripción y mantén el acceso a las señales de trading de Cripto Signal Bot. ¡No pierdas esta oportunidad!"  
-                    )
-                else:
-                    text = (
-                        "⏳ Your "
-                        f"{TYPE_LABELS.get(stype, stype)} subscription expires in 24 hours. "
-                        "Renew your subscription and maintain access to Crypto Signal Bot's trading signals. Don't miss this opportunity!"
-                    )
+                text = (
+                    "⏳ Tu suscripción "
+                    f"{TYPE_LABELS.get(stype, stype)} expira pronto. Renueva ya."
+                    if lang=="ES" else
+                    "⏳ Your subscription is about to expire soon. Renew now."
+                )
                 requests.post(
                     f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                    json={
-                        "chat_id": cid,
-                        "text": text,
-                        "reply_markup": {
-                            "inline_keyboard": [[
-                                {"text":"🔄 Renovar / Renew","callback_data":f"renovar_menu|{stype}"}
-                            ]]
-                        }
-                    },
-                    timeout=10
+                    json={"chat_id":cid,"text":text,
+                          "reply_markup":{"inline_keyboard":[[
+                              {"text":"🔄 Renovar","callback_data":f"renovar_menu|{stype}"}
+                          ]]}},timeout=10
                 )
                 subs[stype]["avisado"] = True
                 modified = True
 
-            # ─── Expiración ───────────────────────────────────────────────
+            # Expiración
             if secs <= 0:
-                invite_link = sub.get("invite_link")
-                plan_key    = sub.get("plan")
-                group_id    = PLANS[plan_key][f"group_id_{lang.lower()}"]
-
-                if invite_link:
+                plan_key = sub.get("plan")
+                group_id = PLANS[plan_key][f"group_id_{lang.lower()}"]
+                # revocar invite
+                if sub.get("invite_link"):
                     try:
                         requests.post(
                             f"https://api.telegram.org/bot{BOT_TOKEN}/revokeChatInviteLink",
-                            json={"chat_id": group_id, "invite_link": invite_link},
-                            timeout=10
+                            json={"chat_id":group_id,"invite_link":sub["invite_link"]},timeout=10
                         )
-                    except Exception as e:
-                        log.error(f"Error revoking invite link: {e}")
-
-                if lang == "ES":
-                    text = f"❌ Tu suscripción {TYPE_LABELS.get(stype, stype)} ha expirado."
-                else:
-                    text = f"❌ Your subscription {TYPE_LABELS.get(stype, stype)} has expired."
-
+                    except: pass
+                # mensaje de expirado
+                text = (
+                    f"❌ Tu suscripción {TYPE_LABELS.get(stype)} ha expirado."
+                    if lang=="ES" else
+                    f"❌ Your subscription {TYPE_LABELS.get(stype)} has expired."
+                )
                 requests.post(
                     f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                    json={
-                        "chat_id": cid,
-                        "text": text,
-                        "reply_markup": {
-                            "inline_keyboard": [[
-                                {"text":"🔄 Renovar / Renew","callback_data":f"renovar_menu|{stype}"}
-                            ]]
-                        }
-                    },
-                    timeout=10
+                    json={"chat_id":cid,"text":text,
+                          "reply_markup":{"inline_keyboard":[[
+                              {"text":"🔄 Renovar","callback_data":f"renovar_menu|{stype}"}
+                          ]]}},timeout=10
                 )
-                requests.post(
-                    f"https://api.telegram.org/bot{BOT_TOKEN}/kickChatMember",
-                    json={"chat_id": group_id, "user_id": cid},
-                    timeout=10
-                )
-                requests.post(
-                    f"https://api.telegram.org/bot{BOT_TOKEN}/unbanChatMember",
-                    json={"chat_id": group_id, "user_id": cid},
-                    timeout=10
-                )
-
+                # expulsar del grupo
+                requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/kickChatMember",
+                              json={"chat_id":group_id,"user_id":cid},timeout=10)
+                requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/unbanChatMember",
+                              json={"chat_id":group_id,"user_id":cid},timeout=10)
+                # eliminar suscripción
                 subs.pop(stype)
                 modified = True
 
