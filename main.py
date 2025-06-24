@@ -78,32 +78,34 @@ def init_db():
       PRIMARY KEY(email, stype)
     );
     """
-    conn = get_conn(); cur = conn.cursor()
-    cur.execute(ddl); conn.commit()
-    cur.close(); conn.close()
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(ddl)
+    conn.commit()
+    cur.close()
+    conn.close()
 
 def load_users():
     """Carga toda la info de usuarios + suscripciones en memoria."""
-    conn = get_conn(); cur = conn.cursor()
+    conn = get_conn()
+    cur = conn.cursor()
     users = {}
-    # Usuarios
     cur.execute("SELECT * FROM users")
     for u in cur.fetchall():
         users[u['email']] = dict(u)
         users[u['email']]['suscripciones'] = {}
-    # Suscripciones
     cur.execute("SELECT * FROM suscripciones")
     for s in cur.fetchall():
-        stype = s['stype']
-        users[s['email']]['suscripciones'][stype] = dict(s)
-    cur.close(); conn.close()
+        users[s['email']]['suscripciones'][s['stype']] = dict(s)
+    cur.close()
+    conn.close()
     return users
 
 def save_users(users):
     """Persiste usuarios y suscripciones a la DB."""
-    conn = get_conn(); cur = conn.cursor()
+    conn = get_conn()
+    cur = conn.cursor()
     for email, info in users.items():
-        # Upsert user
         cur.execute("""
             INSERT INTO users(email,nombre,apellido,telefono,chat_id,lang,pending_sub)
             VALUES(%s,%s,%s,%s,%s,%s,%s)
@@ -119,7 +121,6 @@ def save_users(users):
             info.get("telefono"), info.get("chat_id"),
             info.get("lang"), info.get("pending_sub")
         ))
-        # Upsert suscripciones
         for stype, sub in info.get("suscripciones", {}).items():
             cur.execute("""
                 INSERT INTO suscripciones(email,stype,plan,ingreso,expira,avisado,invite_link)
@@ -138,7 +139,12 @@ def save_users(users):
                 sub.get("avisado", False),
                 sub.get("invite_link")
             ))
-    conn.commit(); cur.close(); conn.close()
+    conn.commit()
+    cur.close()
+    conn.close()
+
+# ─── Inicializa la BD ───────────────────────────────────────────────────────
+init_db()
 
 # ─── Funciones de apoyo ya existentes ───────────────────────────────────────
 def get_sub_type(plan_key):
@@ -196,7 +202,6 @@ def check_subscriptions():
             if secs <= 0:
                 plan_key = sub.get("plan")
                 group_id = PLANS[plan_key][f"group_id_{lang.lower()}"]
-                # revocar invite
                 if sub.get("invite_link"):
                     try:
                         requests.post(
@@ -204,7 +209,6 @@ def check_subscriptions():
                             json={"chat_id":group_id,"invite_link":sub["invite_link"]},timeout=10
                         )
                     except: pass
-                # mensaje de expirado
                 text = (
                     f"❌ Tu suscripción {TYPE_LABELS.get(stype)} ha expirado."
                     if lang=="ES" else
@@ -217,12 +221,10 @@ def check_subscriptions():
                               {"text":"🔄 Renovar","callback_data":f"renovar_menu|{stype}"}
                           ]]}},timeout=10
                 )
-                # expulsar del grupo
                 requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/kickChatMember",
                               json={"chat_id":group_id,"user_id":cid},timeout=10)
                 requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/unbanChatMember",
                               json={"chat_id":group_id,"user_id":cid},timeout=10)
-                # eliminar suscripción
                 subs.pop(stype)
                 modified = True
 
