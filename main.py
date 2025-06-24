@@ -27,22 +27,25 @@ def ping():
     return 'pong', 200
 
 # ───────── CONFIGURACIÓN ─────────────────────────────────────────────────────────
-BOT_TOKEN       = "7457058289:AAF-VN0UWiduteBV79VdKxgIT2yeg9wa-LQ"
-FIRE_IMAGE_URL  = "https://cryptosignalbot.com/wp-content/uploads/2025/02/Fire-Scalping-Senales-de-Trading-para-Ganar-Mas-en-Cripto-3.png"
-ELITE_IMAGE_URL = "https://cryptosignalbot.com/wp-content/uploads/2025/02/ELITE-Scalping-Intradia-Senales-en-Tiempo-Real.png"
-DELTA_IMAGE_URL = "https://cryptosignalbot.com/wp-content/uploads/2025/03/delta-swing-trading-crypto-signal.png"
-RENEWAL_URL     = "https://cryptosignalbot.com/mi-cuenta"
-USERS_FILE      = "usuarios_activos.json"  # (ya no se usa, queda declara-do por compatibilidad)
-LOG_FILE        = "csb_events.log"
+BOT_TOKEN         = "7457058289:AAF-VN0UWiduteBV79VdKxgIT2yeg9wa-LQ"
+FIRE_IMAGE_URL    = "https://cryptosignalbot.com/wp-content/uploads/2025/02/Fire-Scalping-Senales-de-Trading-para-Ganar-Mas-en-Cripto-3.png"
+ELITE_IMAGE_URL   = "https://cryptosignalbot.com/wp-content/uploads/2025/02/ELITE-Scalping-Intradia-Senales-en-Tiempo-Real.png"
+DELTA_IMAGE_URL   = "https://cryptosignalbot.com/wp-content/uploads/2025/03/delta-swing-trading-crypto-signal.png"
+RENEWAL_URL       = "https://cryptosignalbot.com/mi-cuenta"
+USERS_FILE        = "usuarios_activos.json"  # ya no se usa, sigue declarado por compatibilidad
+LOG_FILE          = "csb_events.log"
 
 # Planes y sus tiempos
 PLANS = {
+    # FIRE
     "GRATIS_ES":        {"duration_min":  7   * 24 * 60, "group_id_es": "-1002470074373", "group_id_en": "-1002371800315"},
     "MES_ES":           {"duration_min": 30   * 24 * 60, "group_id_es": "-1002470074373", "group_id_en": "-1002371800315"},
     "ANIO_ES":          {"duration_min":365   * 24 * 60, "group_id_es": "-1002470074373", "group_id_en": "-1002371800315"},
+    # ÉLITE
     "GRATIS_ES_ELITE":  {"duration_min": 15   * 24 * 60, "group_id_es": "-1002437381292", "group_id_en": "-1002432864193"},
     "MES_ES_ELITE":     {"duration_min": 30   * 24 * 60, "group_id_es": "-1002437381292", "group_id_en": "-1002432864193"},
     "ANIO_ES_ELITE":    {"duration_min":365   * 24 * 60, "group_id_es": "-1002437381292", "group_id_en": "-1002432864193"},
+    # DELTA
     "GRATIS_ES_DELTA":  {"duration_min": 30   * 24 * 60, "group_id_es": "-1002299713092", "group_id_en": "-1002428632182"},
     "MES_ES_DELTA":     {"duration_min": 30   * 24 * 60, "group_id_es": "-1002299713092", "group_id_en": "-1002428632182"},
     "ANIO_ES_DELTA":    {"duration_min":365   * 24 * 60, "group_id_es": "-1002299713092", "group_id_en": "-1002428632182"},
@@ -77,10 +80,10 @@ log = logging.getLogger("CSB")
 
 # ─── Google Sheets como base de datos ────────────────────────────────────────────
 def get_sheet():
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds_json = json.loads(os.environ["GS_CREDENTIALS_JSON"])
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_json, scope)
-    client = gspread.authorize(creds)
+    scope       = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    creds_json  = json.loads(os.environ["GS_CREDENTIALS_JSON"])
+    creds       = ServiceAccountCredentials.from_json_keyfile_dict(creds_json, scope)
+    client      = gspread.authorize(creds)
     SPREADSHEET_ID = os.environ["GS_SHEET_ID"]
     return client.open_by_key(SPREADSHEET_ID).sheet1
 
@@ -121,7 +124,7 @@ def save_users(users):
     sheet.clear()
     sheet.update(data)
 
-# ─── Resto del código (sin cambios) ───────────────────────────────────────────────
+# ─── Funciones y lógica originales (sin otros cambios) ────────────────────────────
 def get_sub_type(plan_key):
     if plan_key.endswith('_ELITE'): return 'Élite'
     if plan_key.endswith('_DELTA'): return 'Delta'
@@ -142,7 +145,7 @@ def enlace_unico(group_id):
 
 def check_subscriptions():
     users = load_users()
-    now = datetime.utcnow()
+    now   = datetime.utcnow()
     modified = False
 
     for email, info in list(users.items()):
@@ -159,20 +162,30 @@ def check_subscriptions():
 
             # ─── Aviso 5 minutos ─────────────────────────────────────────
             if secs <= 300 and not sub.get("avisado", False):
-                text = (
-                    "⏳ Tu suscripción "
-                    f"{TYPE_LABELS.get(stype)} expira en 24 Horas." 
-                    if lang=="ES" 
-                    else
-                    f"⏳ Your {TYPE_LABELS.get(stype)} subscription expires in 24 hours."
-                )
+                if lang == "ES":
+                    text = (
+                        "⏳ Tu suscripción "
+                        f"{TYPE_LABELS.get(stype)} expira en 24 Horas. "
+                        "Renueva tu suscripción y mantén el acceso a las señales de trading de Cripto Signal Bot. ¡No pierdas esta oportunidad!"
+                    )
+                else:
+                    text = (
+                        "⏳ Your "
+                        f"{TYPE_LABELS.get(stype)} subscription expires in 24 hours. "
+                        "Renew your subscription and maintain access to Crypto Signal Bot's trading signals. Don't miss this opportunity!"
+                    )
                 requests.post(
                     f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                    json={"chat_id": cid, "text": text, "reply_markup": {
-                        "inline_keyboard": [[
-                            {"text":"🔄 Renovar / Renew","callback_data":f"renovar_menu|{stype}"}
-                        ]]
-                    }}
+                    json={
+                        "chat_id": cid,
+                        "text": text,
+                        "reply_markup": {
+                            "inline_keyboard":[[
+                                {"text":"🔄 Renovar / Renew","callback_data":f"renovar_menu|{stype}"}
+                            ]]
+                        }
+                    },
+                    timeout=10
                 )
                 subs[stype]["avisado"] = True
                 modified = True
@@ -183,36 +196,44 @@ def check_subscriptions():
                 plan_key    = sub.get("plan")
                 group_id    = PLANS[plan_key][f"group_id_{lang.lower()}"]
 
-                # revoke invite link
                 if invite_link:
                     try:
                         requests.post(
                             f"https://api.telegram.org/bot{BOT_TOKEN}/revokeChatInviteLink",
-                            json={"chat_id": group_id, "invite_link": invite_link}
+                            json={"chat_id": group_id, "invite_link": invite_link},
+                            timeout=10
                         )
                     except Exception as e:
                         log.error(f"Error revoking invite link: {e}")
 
-                # mensaje de expiración
-                text = (
-                    f"❌ Tu suscripción {TYPE_LABELS.get(stype)} ha expirado."
-                    if lang=="ES"
-                    else
-                    f"❌ Your subscription {TYPE_LABELS.get(stype)} has expired."
-                )
+                if lang == "ES":
+                    text = f"❌ Tu suscripción {TYPE_LABELS.get(stype)} ha expirado."
+                else:
+                    text = f"❌ Your subscription {TYPE_LABELS.get(stype)} has expired."
+
                 requests.post(
                     f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                    json={"chat_id": cid, "text": text, "reply_markup": {
-                        "inline_keyboard": [[
-                            {"text":"🔄 Renovar / Renew","callback_data":f"renovar_menu|{stype}"}
-                        ]]
-                    }}
+                    json={
+                        "chat_id": cid,
+                        "text": text,
+                        "reply_markup": {
+                            "inline_keyboard":[[
+                                {"text":"🔄 Renovar / Renew","callback_data":f"renovar_menu|{stype}"}
+                            ]]
+                        }
+                    },
+                    timeout=10
                 )
-                # expulsión del grupo
-                requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/kickChatMember",
-                              json={"chat_id": group_id, "user_id": cid})
-                requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/unbanChatMember",
-                              json={"chat_id": group_id, "user_id": cid})
+                requests.post(
+                    f"https://api.telegram.org/bot{BOT_TOKEN}/kickChatMember",
+                    json={"chat_id": group_id, "user_id": cid},
+                    timeout=10
+                )
+                requests.post(
+                    f"https://api.telegram.org/bot{BOT_TOKEN}/unbanChatMember",
+                    json={"chat_id": group_id, "user_id": cid},
+                    timeout=10
+                )
 
                 subs.pop(stype)
                 modified = True
@@ -267,10 +288,10 @@ def agregar_suscripción():
     exp_new = base + timedelta(minutes=PLANS[plan]["duration_min"])
 
     subs[stype] = {
-        "plan":        plan,
-        "ingreso":     ingreso,
-        "expira":      exp_new.isoformat(),
-        "avisado":     False,
+        "plan":      plan,
+        "ingreso":   ingreso,
+        "expira":    exp_new.isoformat(),
+        "avisado":   False,
         "invite_link": info.get("suscripciones", {}).get(stype, {}).get("invite_link")
     }
     info.update({
@@ -329,7 +350,7 @@ def usuarios_activos():
     </body></html>
     """, rows=rows)
 
-@app.route("/telegram-webhook", methods=["GET","POST"])
+@app.route("/telegram-webhook", methods=["GET", "POST"])
 def telegram_webhook():
     if request.method == "GET":
         return "OK", 200
@@ -356,7 +377,7 @@ def telegram_webhook():
 📈 Señales de trading en tiempo real | Máxima precisión | Resultados comprobados
 
 🔹 Accede a señales de alta precisión para BTC, ETH, XRP, BNB y ADA  
-🔹 Estrategias para scalping, intradía y swing trading  
+🔹 Estrategias para escalping, intradía y swing trading  
 🔹 Señales generadas 24/7 según la volatilidad del mercado  
 
 📂 Grupo VIP organizado por temas independientes:  
@@ -527,7 +548,7 @@ Select your language to continue.""",
             )
             return jsonify({}), 200
         # 5) Soporte para texto libre (no comando), ignorar 🎁 VIP Gratis y 🎁 VIP Free
-        if text and not text.startswith("/") and text not in ["🎁 VIP Gratis", "🎁 VIP Free"]:
+        if text and not text.startswith("/") and text not in ["🎁 Acceso a Señales VIP Gratis", "🎁 Access Signal VIP Free," "📊 Análisis BTC - BTC Analysis"]:
             kb = {"inline_keyboard":[[
                 {"text":"🇪🇸 Español","url":"https://t.me/CriptoSignalBotGestion_bot?start=68519f3993f15cf1aa079c62"},
                 {"text":"🇺🇸 English","url":"https://t.me/CriptoSignalBotGestion_bot?start=68519fa69049c36b2a0e9485"}
