@@ -731,8 +731,52 @@ Select your language to continue.""",
             )
             return jsonify({}), 200
 
-    return jsonify({}), 200
+        return jsonify({}), 200
 
+
+# ─── Endpoint para eliminar suscripción desde WordPress ─────────────────────────────
+@app.route("/remove-subscription", methods=["POST"])
+def remove_subscription():
+    """
+    Recibe JSON { "email": "...", "plan": "MES_ES" } desde WP,
+    expulsa al usuario del grupo de Telegram y actualiza usuarios_activos.json.
+    """
+    data = request.get_json(force=True) or {}
+    email = data.get("email")
+    plan  = data.get("plan")
+    if not email or plan not in PLANS:
+        return jsonify({"status": "error", "msg": "datos inválidos"}), 400
+
+    users = load_users()
+    info = users.get(email)
+    if not info or "suscripciones" not in info:
+        return jsonify({"status": "error", "msg": "sin suscripción"}), 404
+
+    # Expulsa del grupo
+    stype = get_sub_type(plan)
+    sub = info["suscripciones"].pop(stype, None)
+    if sub:
+        lang     = info.get("lang", "ES").lower()
+        group_id = PLANS[plan][f"group_id_{lang}"]
+        cid      = info.get("chat_id")
+        if cid:
+            requests.post(
+                f"https://api.telegram.org/bot{BOT_TOKEN}/kickChatMember",
+                json={"chat_id": group_id, "user_id": cid}, timeout=10
+            )
+            requests.post(
+                f"https://api.telegram.org/bot{BOT_TOKEN}/unbanChatMember",
+                json={"chat_id": group_id, "user_id": cid}, timeout=10
+            )
+
+    # Actualiza JSON
+    if not info["suscripciones"]:
+        users.pop(email)
+    else:
+        users[email] = info
+    save_users(users)
+
+    return jsonify({"status": "ok"}), 200
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(__import__('os').environ.get("PORT", 5000)))
