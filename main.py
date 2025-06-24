@@ -18,6 +18,11 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 app = Flask(__name__)
 
+# ─── Health-check para mantener la app despierta ───────────────────────────────────
+@app.route('/ping', methods=['GET'])
+def ping():
+    return 'pong', 200
+
 # ───────── CONFIGURACIÓN ──────────
 BOT_TOKEN         = "7457058289:AAF-VN0UWiduteBV79VdKxgIT2yeg9wa-LQ"
 FIRE_IMAGE_URL    = "https://cryptosignalbot.com/wp-content/uploads/2025/02/Fire-Scalping-Senales-de-Trading-para-Ganar-Mas-en-Cripto-3.png"
