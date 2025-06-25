@@ -42,15 +42,15 @@ PLANS = {
 
 # Etiquetas legibles
 LABELS = {
-    "GRATIS_ES":        "𝐅𝐢𝐫𝐞 𝐒𝐜𝐚𝐥𝐩𝐢𝐧𝐠 · Gratis 7 días",
-    "MES_ES":           "𝐅𝐢𝐫𝐞 𝐒𝐜𝐚𝐥𝐩𝐢𝐧𝐠 · Mensual",
-    "ANIO_ES":          "𝐅𝐢𝐫𝐞 𝐒𝐜𝐚𝐥𝐩𝐢𝐧𝐠 · Anual",
-    "GRATIS_ES_ELITE":  "𝐄𝐋𝐈𝐓𝐄 · Gratis 15 días",
-    "MES_ES_ELITE":     "𝐄𝐋𝐈𝐓𝐄 · Mensual",
-    "ANIO_ES_ELITE":    "𝐄𝐋𝐈𝐓𝐄 · Anual",
-    "GRATIS_ES_DELTA":  "𝐃𝐄𝐋𝐓𝐀 Swing · Gratis 30 días",
-    "MES_ES_DELTA":     "𝐃𝐄𝐋𝐓𝐀 Swing · Mensual",
-    "ANIO_ES_DELTA":    "𝐃𝐄𝐋𝐓𝐀 Swing · Anual",
+    "GRATIS_ES":        "Gratis 7 días",
+    "MES_ES":           "Mensual",
+    "ANIO_ES":          "Anual",
+    "GRATIS_ES_ELITE":  "Gratis 15 días",
+    "MES_ES_ELITE":     "Mensual",
+    "ANIO_ES_ELITE":    "Anual",
+    "GRATIS_ES_DELTA":  "Gratis 30 días",
+    "MES_ES_DELTA":     "Mensual",
+    "ANIO_ES_DELTA":    "Anual",
 }
 
 TYPE_LABELS = {
@@ -641,7 +641,7 @@ Select your language to continue.""",
             )
             return jsonify({}), 200
         # 5) Soporte para texto libre (no comando), ignorar 🎁 VIP Gratis y 🎁 VIP Free
-        if text and not text.startswith("/") and text not in ["🎁 VIP Gratis", "🎁 VIP Free"]:
+        if text and not text.startswith("/") and text not in ["🎁 Acceso a Señales VIP Gratis", "🎁 Access Signal VIP Free", "📊 Análisis BTC - BTC Analysis"]:
             kb = {"inline_keyboard":[[
                 {"text":"🇪🇸 Español","url":"https://t.me/CriptoSignalBotGestion_bot?start=68519f3993f15cf1aa079c62"},
                 {"text":"🇺🇸 English","url":"https://t.me/CriptoSignalBotGestion_bot?start=68519fa69049c36b2a0e9485"}
