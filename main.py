@@ -229,12 +229,14 @@ def agregar_suscripción():
     if not email or plan not in PLANS:
         return jsonify({"status": "error", "msg": "datos inválidos"}), 400
 
+    # Cargo usuarios actuales
     users = load_users()
     now   = datetime.utcnow()
     info  = users.get(email, {})
     lang  = info.get("lang", "ES")
     subs  = info.get("suscripciones", {})
 
+    # Calculo nueva fecha de expiración
     stype = get_sub_type(plan)
     old   = subs.get(stype)
     if old and old.get("expira"):
@@ -249,11 +251,12 @@ def agregar_suscripción():
         ingreso = now.isoformat()
     exp_new = base + timedelta(minutes=PLANS[plan]["duration_min"])
 
+    # Actualizo suscripciones en memoria
     subs[stype] = {
-        "plan":      plan,
-        "ingreso":   ingreso,
-        "expira":    exp_new.isoformat(),
-        "avisado":   False,
+        "plan":        plan,
+        "ingreso":     ingreso,
+        "expira":      exp_new.isoformat(),
+        "avisado":     False,
         "invite_link": info.get("suscripciones", {}).get(stype, {}).get("invite_link")
     }
     info.update({
@@ -266,7 +269,30 @@ def agregar_suscripción():
         "pending_sub":   stype
     })
     users[email] = info
+
+    # Guardo en Google Sheets
     save_users(users)
+
+    # ─── Generar y guardar enlace de invitación ──────────────────────
+    grp_id = PLANS[plan][f"group_id_{lang.lower()}"]
+    invite_link = enlace_unico(grp_id)
+    users[email]["suscripciones"][stype]["invite_link"] = invite_link
+    save_users(users)
+
+    # ─── Enviar enlace al usuario ────────────────────────────────────
+    chat_id = info.get("chat_id")
+    if chat_id and invite_link:
+        requests.post(
+            f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+            json={
+                "chat_id": chat_id,
+                "text": (
+                    "🚀 ¡Tu suscripción está activa!\n"
+                    f"Únete aquí 👇:\n{invite_link}"
+                )
+            },
+            timeout=10
+        )
 
     return jsonify({"status": "ok", "sub_type": stype, "expira": exp_new.isoformat()}), 200
 
