@@ -586,35 +586,75 @@ Select your language to continue.""",
         cid  = cq["from"]["id"]
         users = load_users()
 
-        # /start language selection
+    # /start language selection  ─────────────────────────────────────────
         if data.startswith("lang|"):
             _, lang, email = data.split("|", 2)
             info = users.get(email)
+
+            # seguridad básica
             if not info or info.get("chat_id") != cid:
                 return jsonify({}), 200
+
+            # actualizamos idioma
             info["lang"] = lang
+
+            # 1) suscripción “pendiente” guardada al crear/agregar
             stype = info.pop("pending_sub", None)
-            sub   = info.get("suscripciones", {}).get(stype)
-            plan_key = sub.get("plan")
-            grp = PLANS[plan_key][f"group_id_{lang.lower()}"]
-            link = enlace_unico(grp)
-            info["suscripciones"][stype]["invite_link"] = link
+
+            # 2) si no existe, tomamos la primera suscripción activa
+            if not stype:
+                stype = next(iter(info.get("suscripciones", {})), None)
+
+            # 3) si sigue vacío, no hay nada que vincular → avisamos y salimos
+            if not stype:
+                requests.post(
+                    f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                    json={
+                        "chat_id": cid,
+                        "text": (
+                            "No encontramos ninguna suscripción activa vinculada a tu cuenta."
+                            if lang == "ES"
+                            else "No active subscription was found for your account."
+                        )
+                    },
+                    timeout=10
+                )
+                return jsonify({}), 200
+
+            # recuperamos la suscripción y generamos el enlace
+            sub       = info["suscripciones"][stype]
+            plan_key  = sub["plan"]
+            grp       = PLANS[plan_key][f"group_id_{lang.lower()}"]
+            link      = enlace_unico(grp)
+            sub["invite_link"] = link     # guardamos el nuevo enlace
+
+            # persistimos cambios antes de enviar nada
             users[email] = info
             save_users(users)
 
-            btn = [{"text":"🏆 Unirme o Renovar / Join or Renew","url":link}]
-            caption = (
+            # preparamos foto + botón
+            btn      = [{"text": "🏆 Unirme o Renovar / Join or Renew", "url": link}]
+            caption  = (
                 "🚀 ¡Bienvenido! Pulsa aquí👇 para acceder a señales VIP y mejorar tu trading 🔔\n"
-                "Si ya eres miembro, pulsa igual para 🔄 renovar tu acceso y seguir disfrutando de análisis en tiempo real."
-                if lang=="ES"
-                else
+                "Si ya eres miembro, pulsa igual para 🔄 renovar tu acceso."
+                if lang == "ES" else
                 "🚀 Welcome! Tap here👇 to access VIP signals and boost your trading 🔔\n"
-                "If you’re already a member, tap again to 🔄 renew your access and keep enjoying real-time analysis."
+                "If you’re already a member, tap again to 🔄 renew your access."
             )
-            img_url = FIRE_IMAGE_URL if get_sub_type(plan_key)=="Fire" else ELITE_IMAGE_URL if get_sub_type(plan_key)=="Élite" else DELTA_IMAGE_URL
+            img_url = (
+                FIRE_IMAGE_URL  if get_sub_type(plan_key) == "Fire"  else
+                ELITE_IMAGE_URL if get_sub_type(plan_key) == "Élite" else
+                DELTA_IMAGE_URL
+            )
+
             requests.post(
                 f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto",
-                json={"chat_id": cid, "photo": img_url, "caption": caption, "reply_markup":{"inline_keyboard":[btn]}},
+                json={
+                    "chat_id": cid,
+                    "photo":   img_url,
+                    "caption": caption,
+                    "reply_markup": {"inline_keyboard": [btn]}
+                },
                 timeout=10
             )
             return jsonify({}), 200
