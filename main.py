@@ -587,53 +587,65 @@ Select your language to continue.""",
             )
             return jsonify({}), 200
 
-    # ─────────── 3) Callback Queries (botones)  ────────────────────────
-    if "callback_query" in up:
-        cq   = up["callback_query"]
-        data = cq["data"]; cid = cq["from"]["id"]
-        users = load_users()
-
         # --- Selección de idioma tras /start ---
         if data.startswith("lang|"):
-            _, lang, email = data.split("|",2)
+            _, lang, email = data.split("|", 2)
             info = users.get(email)
             if not info or info.get("chat_id") != cid:
-                return jsonify({}),200
+                return jsonify({}), 200
 
             info["lang"] = lang
+            subs = info.get("suscripciones", {})
+
+            # 1⃣: primero intentamos usar el pending_sub que se puso al comprar
             stype = info.pop("pending_sub", None)
-            # fallback por seguridad
-            if not stype:
-                stype = next(iter(info["suscripciones"]), None)
-            if not stype:
-                return jsonify({}),200
 
-            sub = info["suscripciones"][stype]
-            plan_key = sub["plan"]
+            # 2⃣: si no existe (porque el botón era viejo) elegimos
+            #     ▸ la suscripción SIN enlace aún
+            #     ▸ y, si todas tienen enlace, la de fecha de ingreso más reciente
+            if not stype or stype not in subs:
+                sin_link = [k for k, v in subs.items() if not v.get("invite_link")]
+                if sin_link:
+                    stype = sin_link[-1]        # la última comprada sin enlace
+                else:
+                    # la de ingreso más nuevo
+                    stype = max(subs, key=lambda k: subs[k]["ingreso"])
 
-            grp  = PLANS[plan_key][f"group_id_{lang.lower()}"]
-            link = enlace_unico(grp)
+            sub       = subs[stype]
+            plan_key  = sub["plan"]
+            grp       = PLANS[plan_key][f"group_id_{lang.lower()}"]
+            link      = enlace_unico(grp)
             sub["invite_link"] = link
 
             users[email] = info
             save_users(users)
 
-            btn = [{"text":"🏆 Unirme o Renovar / Join or Renew","url":link}]
+            btn = [[{"text": "🏆 Unirme o Renovar / Join or Renew", "url": link}]]
             caption = (
                 "🚀 ¡Bienvenido! Pulsa aquí👇 para acceder a señales VIP y mejorar tu trading 🔔\n"
                 "Si ya eres miembro, pulsa igual para 🔄 renovar tu acceso y seguir disfrutando de análisis en tiempo real."
-                if lang=="ES"
+                if lang == "ES"
                 else
                 "🚀 Welcome! Tap here👇 to access VIP signals and boost your trading 🔔\n"
                 "If you’re already a member, tap again to 🔄 renew your access and keep enjoying real-time analysis."
             )
-            img_url = FIRE_IMAGE_URL if get_sub_type(plan_key)=="Fire" else ELITE_IMAGE_URL if get_sub_type(plan_key)=="Élite" else DELTA_IMAGE_URL
+            img_url = (
+                FIRE_IMAGE_URL  if get_sub_type(plan_key) == "Fire"  else
+                ELITE_IMAGE_URL if get_sub_type(plan_key) == "Élite" else
+                DELTA_IMAGE_URL
+            )
             requests.post(
                 f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto",
-                json={"chat_id": cid, "photo": img_url, "caption": caption, "reply_markup":{"inline_keyboard":[btn]}},
+                json={
+                    "chat_id": cid,
+                    "photo":   img_url,
+                    "caption": caption,
+                    "reply_markup": {"inline_keyboard": btn}
+                },
                 timeout=10
             )
             return jsonify({}), 200
+
 
         # --- /misdatos idioma ---
         if data.startswith("misdatos_lang|"):
