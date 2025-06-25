@@ -545,7 +545,7 @@ Select your language to continue.""",
 
             return jsonify({}), 200
 
-        # 4) /misdatos comando manual (original)
+                # 4) /misdatos comando manual (original)
         if text == "/misdatos" and cid:
             kb = {"inline_keyboard":[
                 [{"text":"🇪🇸 Español","callback_data":"misdatos_lang|ES"}],
@@ -571,7 +571,7 @@ Select your language to continue.""",
             )
             return jsonify({}), 200
         # 5) Soporte para texto libre (no comando), ignorar 🎁 VIP Gratis y 🎁 VIP Free
-        if text and not text.startswith("/") and text not in ["🎁 Acceso a Señales VIP Gratis", "🎁 Access Signal VIP Free", "📊 Análisis BTC - BTC Analysis"]:
+        if text and not text.startswith("/") and text not in ["🎁 VIP Gratis", "🎁 VIP Free"]:
             kb = {"inline_keyboard":[[
                 {"text":"🇪🇸 Español","url":"https://t.me/CriptoSignalBotGestion_bot?start=68519f3993f15cf1aa079c62"},
                 {"text":"🇺🇸 English","url":"https://t.me/CriptoSignalBotGestion_bot?start=68519fa69049c36b2a0e9485"}
@@ -587,60 +587,137 @@ Select your language to continue.""",
             )
             return jsonify({}), 200
 
-        # --- Selección de idioma tras /start ---
+    # Callback queries (original)
+    if "callback_query" in up:
+        cq   = up["callback_query"]
+        data = cq.get("data", "")
+        cid  = cq["from"]["id"]
+        users = load_users()
+
+        # /start language selection
         if data.startswith("lang|"):
             _, lang, email = data.split("|", 2)
             info = users.get(email)
             if not info or info.get("chat_id") != cid:
                 return jsonify({}), 200
-
             info["lang"] = lang
-            subs = info.get("suscripciones", {})
-
-            # 1⃣: primero intentamos usar el pending_sub que se puso al comprar
             stype = info.pop("pending_sub", None)
-
-            # 2⃣: si no existe (porque el botón era viejo) elegimos
-            #     ▸ la suscripción SIN enlace aún
-            #     ▸ y, si todas tienen enlace, la de fecha de ingreso más reciente
-            if not stype or stype not in subs:
-                sin_link = [k for k, v in subs.items() if not v.get("invite_link")]
-                if sin_link:
-                    stype = sin_link[-1]        # la última comprada sin enlace
-                else:
-                    # la de ingreso más nuevo
-                    stype = max(subs, key=lambda k: subs[k]["ingreso"])
-
-            sub       = subs[stype]
-            plan_key  = sub["plan"]
-            grp       = PLANS[plan_key][f"group_id_{lang.lower()}"]
-            link      = enlace_unico(grp)
-            sub["invite_link"] = link
-
+            sub   = info.get("suscripciones", {}).get(stype)
+            plan_key = sub.get("plan")
+            grp = PLANS[plan_key][f"group_id_{lang.lower()}"]
+            link = enlace_unico(grp)
+            info["suscripciones"][stype]["invite_link"] = link
             users[email] = info
             save_users(users)
 
-            btn = [[{"text": "🏆 Unirme o Renovar / Join or Renew", "url": link}]]
+            btn = [{"text":"🏆 Unirme o Renovar / Join or Renew","url":link}]
             caption = (
                 "🚀 ¡Bienvenido! Pulsa aquí👇 para acceder a señales VIP y mejorar tu trading 🔔\n"
                 "Si ya eres miembro, pulsa igual para 🔄 renovar tu acceso y seguir disfrutando de análisis en tiempo real."
-                if lang == "ES"
+                if lang=="ES"
                 else
                 "🚀 Welcome! Tap here👇 to access VIP signals and boost your trading 🔔\n"
                 "If you’re already a member, tap again to 🔄 renew your access and keep enjoying real-time analysis."
             )
-            img_url = (
-                FIRE_IMAGE_URL  if get_sub_type(plan_key) == "Fire"  else
-                ELITE_IMAGE_URL if get_sub_type(plan_key) == "Élite" else
-                DELTA_IMAGE_URL
-            )
+            img_url = FIRE_IMAGE_URL if get_sub_type(plan_key)=="Fire" else ELITE_IMAGE_URL if get_sub_type(plan_key)=="Élite" else DELTA_IMAGE_URL
             requests.post(
                 f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto",
+                json={"chat_id": cid, "photo": img_url, "caption": caption, "reply_markup":{"inline_keyboard":[btn]}},
+                timeout=10
+            )
+            return jsonify({}), 200
+
+        # misdatos idioma
+        if data.startswith("misdatos_lang|"):
+            _, lang = data.split("|", 1)
+            email = None; info = None
+            for em, inf in users.items():
+                if inf.get("chat_id") == cid:
+                    email, info = em, inf
+                    break
+
+            if not info:
+                rep = "Usted no posee ninguna suscripción." if lang=="ES" else "You have no active subscriptions."
+                requests.post(
+                    f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                    json={"chat_id": cid, "text": rep},
+                    timeout=10
+                )
+                return jsonify({}), 200
+
+            n = info.get("nombre", "")
+            a = info.get("apellido", "")
+            t = info.get("telefono", "")
+            subs = info.get("suscripciones", {})
+
+            if not subs:
+                if lang == "ES":
+                    rep = (
+                        f"Nombre: {n} {a}\n"
+                        f"Correo: {email}\n"
+                        f"Teléfono: {t}\n\n"
+                        f"Usted no posee ninguna suscripción."
+                    )
+                else:
+                    rep = (
+                        f"Name: {n} {a}\n"
+                        f"Email: {email}\n"
+                        f"Phone: {t}\n\n"
+                        f"You have no active subscriptions."
+                    )
+                requests.post(
+                    f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                    json={"chat_id": cid, "text": rep},
+                    timeout=10
+                )
+                return jsonify({}), 200
+
+            if lang == "ES":
+                rep = f"Hola {n} {a},\n\n*Tus suscripciones activas:*\n"
+            else:
+                rep = f"Hello {n} {a},\n\n*Your active subscriptions:*\n"
+            keyboard = []
+            now = datetime.utcnow()
+            for stype, sub in subs.items():
+                plan_key = sub.get("plan")
+                ing = datetime.fromisoformat(sub["ingreso"]).strftime("%Y-%m-%d %H:%M")
+                exp_dt = datetime.fromisoformat(sub["expira"])
+                exp = exp_dt.strftime("%Y-%m-%d %H:%M")
+                delta = exp_dt - now
+                total_seconds = int(delta.total_seconds())
+                months = total_seconds // (30*24*3600)
+                rem_secs = total_seconds - months*30*24*3600
+                days = rem_secs // (24*3600)
+                rem_secs -= days*24*3600
+                hours = rem_secs // 3600
+                rem_secs -= hours*3600
+                minutes = rem_secs // 60
+                plan_name = LABELS.get(plan_key, plan_key)
+                label = TYPE_LABELS.get(stype, stype)
+                if lang == "ES":
+                    rep += (
+                        f"\n• {label}: {plan_name}\n"
+                        f"  - Ingreso: {ing}\n"
+                        f"  - Expira: {exp}\n"
+                        f"  - Restante: {months} meses, {days} días, {hours} horas, {minutes} minutos\n"
+                    )
+                    keyboard.append([{"text":f"🔄 Renovar {label}","callback_data":f"renovar_menu|{stype}"}])
+                else:
+                    rep += (
+                        f"\n• {label}: {plan_name}\n"
+                        f"  - Start: {ing}\n"
+                        f"  - Expires: {exp}\n"
+                        f"  - Remaining: {months} months, {days} days, {hours} hours, {minutes} minutes\n"
+                    )
+                    keyboard.append([{"text":f"🔄 Renew {label}","callback_data":f"renovar_menu|{stype}"}])
+
+            requests.post(
+                f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
                 json={
                     "chat_id": cid,
-                    "photo":   img_url,
-                    "caption": caption,
-                    "reply_markup": {"inline_keyboard": btn}
+                    "text": rep,
+                    "parse_mode": "Markdown",
+                    "reply_markup": {"inline_keyboard": keyboard}
                 },
                 timeout=10
             )
