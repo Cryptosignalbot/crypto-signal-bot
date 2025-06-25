@@ -206,7 +206,7 @@ def check_subscriptions():
     if modified:
         save_users(users)
 
-BackgroundScheduler().add_job(check_subscriptions, "interval", minutes=1).start()
+    BackgroundScheduler().add_job(check_subscriptions, "interval", minutes=1).start()
 
 # ───────────────────────────────────── util: enviar invitación ─────────────────────────────────────
 def send_invite(info,email,cid,lang,stype):
