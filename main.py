@@ -270,7 +270,6 @@ def agregar_suscripción():
 
     return jsonify({"status": "ok", "sub_type": stype, "expira": exp_new.isoformat()}), 200
 
-
 @app.route("/usuarios-activos")
 def usuarios_activos():
     users = load_users()
@@ -727,7 +726,6 @@ Select your language to continue.""",
             return jsonify({}), 200
 
     return jsonify({}), 200
-
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(__import__('os').environ.get("PORT", 5000)))
