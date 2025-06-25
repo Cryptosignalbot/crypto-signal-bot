@@ -288,7 +288,7 @@ def agregar_suscripción():
     subs  = info["suscripciones"]
     stype = get_sub_type(plan)
 
-    # nueva expiración (acumula si sigue activa)
+    # ───── calcular nueva expiración (acumula si aún está activa) ─────
     base = now
     if stype in subs:
         try:
@@ -304,7 +304,7 @@ def agregar_suscripción():
         "ingreso":     subs[stype]["ingreso"] if stype in subs else now.isoformat(),
         "expira":      exp_new.isoformat(),
         "avisado":     False,
-        "invite_link": subs.get(stype, {}).get("invite_link")
+        "invite_link": subs.get(stype, {}).get("invite_link")      # puede ser None
     }
 
     info.update({
@@ -314,10 +314,60 @@ def agregar_suscripción():
         "chat_id": cid,
         "lang": lang,
         "suscripciones": subs,
-        "pending_sub": stype          # para /start
+        "pending_sub": stype          # usado luego en /start
     })
     users[email] = info
+
+    # ─────────────────────── PATCH ① ───────────────────────
+    # Si ya conocemos chat_id + idioma creamos el enlace inmediato
+    if cid and lang and stype:
+        group_id = PLANS[plan][f"group_id_{lang.lower()}"]
+        link = enlace_unico(group_id)
+
+        if link:
+            subs[stype]["invite_link"] = link
+
+            # imagen según tipo
+            img_url = (FIRE_IMAGE_URL  if stype == "Fire"  else
+                       ELITE_IMAGE_URL if stype == "Élite" else
+                       DELTA_IMAGE_URL)
+
+            caption = (
+                "🏆 Pulsa aquí👇 para unirte al nuevo grupo VIP o renovar tu acceso."
+                if lang == "ES" else
+                "🏆 Tap here👇 to join the new VIP group or renew your access."
+            )
+            btn = {"text": "🔗 Acceder / Join", "url": link}
+
+            requests.post(
+                f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto",
+                json={
+                    "chat_id": cid,
+                    "photo":   img_url,
+                    "caption": caption,
+                    "reply_markup": {"inline_keyboard": [[btn]]}
+                },
+                timeout=10
+            )
+        else:
+            # Fallback: no se pudo crear el link → avisamos al usuario
+            warn = ("⚠️ No pude generar tu enlace VIP. Avísanos o inténtalo más tarde."
+                    if lang == "ES" else
+                    "⚠️ I couldn't generate your VIP link. Please contact support or try again later.")
+            requests.post(
+                f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                json={"chat_id": cid, "text": warn},
+                timeout=10
+            )
+    # ─────────────── fin PATCH ① ───────────────
+
     save_users(users)
+
+    return jsonify({
+        "status": "ok",
+        "sub_type": stype,
+        "expira":   exp_new.isoformat()
+    }), 200
 
     return jsonify({"status": "ok", "sub_type": stype, "expira": exp_new.isoformat()}), 200
 
@@ -586,66 +636,62 @@ Select your language to continue.""",
         cid  = cq["from"]["id"]
         users = load_users()
 
-    # /start language selection  ─────────────────────────────────────────
+        # /start language selection  ─────────────────────────────────────────
         if data.startswith("lang|"):
             _, lang, email = data.split("|", 2)
             info = users.get(email)
 
-            # seguridad básica
+            # seguridad
             if not info or info.get("chat_id") != cid:
                 return jsonify({}), 200
 
-            # actualizamos idioma
-            info["lang"] = lang
+            info["lang"] = lang          # actualizamos idioma
+            subs = info.get("suscripciones", {})
 
-            # 1) suscripción “pendiente” guardada al crear/agregar
+            # 1️⃣ preferimos la suscripción marcada como pendiente
             stype = info.pop("pending_sub", None)
 
-            # 2) si no existe, tomamos la primera suscripción activa
+            # 2️⃣ si no hay pending → buscamos la que aún NO tenga invite_link
             if not stype:
-                stype = next(iter(info.get("suscripciones", {})), None)
+                stype = next((s for s, v in subs.items() if not v.get("invite_link")), None)
 
-            # 3) si sigue vacío, no hay nada que vincular → avisamos y salimos
+            # 3️⃣ si todas tenían enlace, escogemos la MÁS RECIENTE (ingreso máximo)
+            if not stype and subs:
+                stype = max(subs, key=lambda s: subs[s]["ingreso"])
+
+            # 4️⃣ si sigue sin haber nada, informamos al usuario
             if not stype:
+                txt = ("No encontramos ninguna suscripción activa vinculada a tu cuenta."
+                       if lang == "ES"
+                       else "No active subscription was found for your account.")
                 requests.post(
                     f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                    json={
-                        "chat_id": cid,
-                        "text": (
-                            "No encontramos ninguna suscripción activa vinculada a tu cuenta."
-                            if lang == "ES"
-                            else "No active subscription was found for your account."
-                        )
-                    },
+                    json={"chat_id": cid, "text": txt},
                     timeout=10
                 )
                 return jsonify({}), 200
 
-            # recuperamos la suscripción y generamos el enlace
-            sub       = info["suscripciones"][stype]
+            # generamos enlace para la suscripción seleccionada
+            sub       = subs[stype]
             plan_key  = sub["plan"]
             grp       = PLANS[plan_key][f"group_id_{lang.lower()}"]
             link      = enlace_unico(grp)
-            sub["invite_link"] = link     # guardamos el nuevo enlace
+            sub["invite_link"] = link
 
-            # persistimos cambios antes de enviar nada
             users[email] = info
             save_users(users)
 
-            # preparamos foto + botón
-            btn      = [{"text": "🏆 Unirme o Renovar / Join or Renew", "url": link}]
-            caption  = (
+            img_url = (FIRE_IMAGE_URL  if get_sub_type(plan_key) == "Fire"
+                       else ELITE_IMAGE_URL if get_sub_type(plan_key) == "Élite"
+                       else DELTA_IMAGE_URL)
+            caption = (
                 "🚀 ¡Bienvenido! Pulsa aquí👇 para acceder a señales VIP y mejorar tu trading 🔔\n"
                 "Si ya eres miembro, pulsa igual para 🔄 renovar tu acceso."
                 if lang == "ES" else
                 "🚀 Welcome! Tap here👇 to access VIP signals and boost your trading 🔔\n"
                 "If you’re already a member, tap again to 🔄 renew your access."
             )
-            img_url = (
-                FIRE_IMAGE_URL  if get_sub_type(plan_key) == "Fire"  else
-                ELITE_IMAGE_URL if get_sub_type(plan_key) == "Élite" else
-                DELTA_IMAGE_URL
-            )
+            btn = [{"text": "🏆 Unirme o Renovar / Join or Renew", "url": link}]
 
             requests.post(
                 f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto",
