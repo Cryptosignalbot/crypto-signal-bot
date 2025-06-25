@@ -362,92 +362,92 @@ def usuarios_activos():
     """, rows=rows)
 
 # ─────────────────────────────  TELEGRAM WEBHOOK  ─────────────────────────────
-@app.route("/telegram-webhook", methods=["GET","POST"])
+@app.route("/telegram-webhook", methods=["GET", "POST"])
 def telegram_webhook():
     if request.method == "GET":
         return "OK", 200
+
     up = request.get_json(force=True)
 
-# ─────────── 1) Bienvenida automática al entrar al grupo ──────────
-if "message" in up and up["message"].get("new_chat_members"):
-    chat_id = up["message"]["chat"]["id"]
-    for m in up["message"]["new_chat_members"]:
-        if m.get("is_bot"):          # ignorar otros bots
-            continue
+    # ─────────── 1) Bienvenida automática al entrar al grupo ──────────
+    if "message" in up and up["message"].get("new_chat_members"):
+        chat_id = up["message"]["chat"]["id"]
 
-        username = m.get("first_name", "")
-        plan_key = None
-        lang = "ES"
+        for m in up["message"]["new_chat_members"]:
+            if m.get("is_bot"):
+                continue  # ignorar otros bots
 
-        # Detectar a qué plan/idioma pertenece el grupo
-        for k, p in PLANS.items():
-            if p["group_id_es"] == str(chat_id):
-                plan_key = k; lang = "ES"; break
-            if p["group_id_en"] == str(chat_id):
-                plan_key = k; lang = "EN"; break
+            username = m.get("first_name", "")
+            plan_key, lang = None, "ES"
 
-        stype = get_sub_type(plan_key) if plan_key else ""
-        stype_label = TYPE_LABELS.get(stype, stype)   # ← ahora sí usamos el nombre correcto
+            # Detectar plan/idioma según el ID del grupo
+            for k, p in PLANS.items():
+                if p["group_id_es"] == str(chat_id):
+                    plan_key, lang = k, "ES"
+                    break
+                if p["group_id_en"] == str(chat_id):
+                    plan_key, lang = k, "EN"
+                    break
 
-        if lang == "ES":
-            txt = f"""👋 ¡Bienvenido al plan {stype_label}, {username}! ¡Bienvenido al Grupo VIP de Crypto Signal Bot!
+            stype        = get_sub_type(plan_key) if plan_key else ""
+            stype_label  = TYPE_LABELS.get(stype, stype)
+
+            if lang == "ES":
+                txt = f"""👋 ¡Bienvenido al plan {stype_label}, {username}! ¡Bienvenido al Grupo VIP de Crypto Signal Bot!
 
 📈 Señales de trading en tiempo real | Máxima precisión | Resultados comprobados
+🔹 Accede a señales de alta precisión para BTC, ETH, XRP, BNB y ADA
+🔹 Estrategias para scalping, intradía y swing trading
+🔹 Señales generadas 24/7 según la volatilidad del mercado
 
-🔹 Accede a señales de alta precisión para BTC, ETH, XRP, BNB y ADA  
-🔹 Estrategias para scalping, intradía y swing trading  
-🔹 Señales generadas 24/7 según la volatilidad del mercado  
+📂 Grupo VIP organizado por temas independientes:
+🔄 Renovar Suscripción
+🏆 Análisis de Bitcoin
+🔹 BTC/USDT
+🔹 XRP/USDT
+🔹 BNB/USDT
+🔹 ETH/USDT
+🔹 ADA/USDT
 
-📂 Grupo VIP organizado por temas independientes:  
-🔄 Renovar Suscripción  
-🏆 Análisis de Bitcoin  
-🔹 BTC/USDT  
-🔹 XRP/USDT  
-🔹 BNB/USDT  
-🔹 ETH/USDT  
-🔹 ADA/USDT  
+Cada tema funciona como un canal independiente con su propio botón de acceso a la señal.
+A medida que agreguemos nuevas criptomonedas, se irán generando nuevos temas automáticamente para ofrecer acceso rápido y organizado a cada señal.
 
-Cada tema funciona como un canal independiente con su propio botón de acceso a la señal.  
-A medida que agreguemos nuevas criptomonedas, se irán generando nuevos temas automáticamente para ofrecer acceso rápido y organizado a cada señal.  
-
-🔗 Accede con un solo clic a las señales y gráficos en vivo en nuestra web  
+🔗 Accede con un solo clic a las señales y gráficos en vivo en nuestra web
 🚀 ¡Prepárate para impulsar tu trading con las mejores oportunidades!"""
-        else:
-            txt = f"""👋 Welcome to the {stype_label} Plan, {username}! Welcome to the Crypto Signal Bot VIP Group!
+            else:
+                txt = f"""👋 Welcome to the {stype_label} Plan, {username}! Welcome to the Crypto Signal Bot VIP Group!
 
 📈 Real-Time Trading | Maximum Accuracy | Proven Results
+🔹 Access high-precision signals for BTC, ETH, XRP, BNB and ADA
+🔹 Strategies for scalping, intraday and swing trading
+🔹 Signals generated 24/7 based on market volatility
 
-🔹 Access high-precision signals for BTC, ETH, XRP, BNB, and ADA  
-🔹 Strategies for scalping, intraday, and swing trading  
-🔹 Signals generated 24/7 based on market volatility  
+📂 VIP group organised by separate topics:
+🔄 Renew Subscription
+🏆 Bitcoin Analysis
+🔹 BTC/USDT
+🔹 XRP/USDT
+🔹 BNB/USDT
+🔹 ETH/USDT
+🔹 ADA/USDT
 
-📂 VIP group organized by separate topics:  
-🔄 Renew Subscription  
-🏆 Bitcoin Analysis  
-🔹 BTC/USDT  
-🔹 XRP/USDT  
-🔹 BNB/USDT  
-🔹 ETH/USDT  
-🔹 ADA/USDT  
+Each topic acts like an independent channel with its own signal-access button.
+As we add new cryptocurrencies, new topics will be generated automatically to provide quick, organised access to each signal.
 
-Each topic acts like an independent channel with its own signal-access button.  
-As we add new cryptocurrencies, new topics will be generated automatically to provide quick, organized access to each signal.  
-
-🔗 One-click access to live signals and charts on our website  
+🔗 One-click access to live signals and charts on our website
 🚀 Get ready to boost your trading with the best opportunities!"""
 
-        # Enviar mensaje de bienvenida
-        requests.post(
-            f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-            json={
-                "chat_id": chat_id,
-                "text": txt,
-                # "parse_mode": "Markdown",        # descomenta si quisieras formato Markdown
-                "disable_web_page_preview": True
-            },
-            timeout=10
-        )
-    return jsonify({}), 200
+            # Enviar mensaje
+            requests.post(
+                f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                json={
+                    "chat_id": chat_id,
+                    "text": txt,
+                    "disable_web_page_preview": True
+                },
+                timeout=10
+            )
+        return jsonify({}), 200
 
     # ─────────── 2) Mensajes de usuario (/start, /misdatos, etc.) ─────
     if "message" in up:
