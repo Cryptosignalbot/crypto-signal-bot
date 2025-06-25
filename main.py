@@ -42,15 +42,15 @@ PLANS = {
 
 # Etiquetas legibles
 LABELS = {
-    "GRATIS_ES":        "Gratis 7 días",
-    "MES_ES":           "Mensual",
-    "ANIO_ES":          "Anual",
-    "GRATIS_ES_ELITE":  "Gratis 15 días",
-    "MES_ES_ELITE":     "Mensual",
-    "ANIO_ES_ELITE":    "Anual",
-    "GRATIS_ES_DELTA":  "Gratis 30 días",
-    "MES_ES_DELTA":     "Mensual",
-    "ANIO_ES_DELTA":    "Anual",
+    "GRATIS_ES":        "Gratis/Free",
+    "MES_ES":           "Mensual/monthly",
+    "ANIO_ES":          "Anual/annual",
+    "GRATIS_ES_ELITE":  "Gratis/Free",
+    "MES_ES_ELITE":     "Mensual/monthly",
+    "ANIO_ES_ELITE":    "Anual/annual",
+    "GRATIS_ES_DELTA":  "Gratis/Free",
+    "MES_ES_DELTA":     "Mensual/monthly",
+    "ANIO_ES_DELTA":    "Anual/annual",
 }
 
 TYPE_LABELS = {
