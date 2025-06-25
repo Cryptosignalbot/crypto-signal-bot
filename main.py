@@ -250,9 +250,37 @@ def check_subscriptions():
     if modified:
         save_users(users)
 
-# Lanzar scheduler
+# ───── Lanzar scheduler ───────────────────────────────────────────
 scheduler = BackgroundScheduler()
+
+# 1️⃣ tarea principal: revisar suscripciones cada minuto
 scheduler.add_job(check_subscriptions, trigger="interval", minutes=1)
+
+# 2️⃣ AUTO-PING cada 5 min (mantiene Render despierto)
+#     - Render define RENDER_EXTERNAL_URL con tu URL pública
+#     - Si prefieres forzar otra, crea la env-var SELF_URL_MANUAL
+SELF_URL = (
+    os.environ.get("SELF_URL_MANUAL") or      # prioridad manual
+    os.environ.get("RENDER_EXTERNAL_URL")     # valor automático de Render
+)
+
+if SELF_URL:
+    SELF_URL = SELF_URL.rstrip("/")
+
+    def self_ping():
+        try:
+            # usamos la ruta /ping que ya existe en tu app
+            requests.get(f"{SELF_URL}/ping", timeout=10)
+            log.debug(f"✅ self-ping OK → {SELF_URL}/ping")
+        except Exception as e:
+            log.warning(f"self-ping failed: {e}")
+
+    # registramos la tarea cada 5 minutos
+    scheduler.add_job(self_ping, trigger="interval", minutes=5)
+else:
+    log.info("No se encontró SELF_URL → auto-ping desactivado")
+
+# ¡Iniciamos el scheduler!
 scheduler.start()
 
 # ───── ENDPOINTS ────────────────────────────────────────────────────
