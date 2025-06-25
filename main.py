@@ -406,7 +406,7 @@ A medida que agreguemos nuevas criptomonedas, se irán generando nuevos temas au
 
 🔗 Accede con un solo clic a las señales y gráficos en vivo en nuestra web  
 🚀 ¡Prepárate para impulsar tu trading con las mejores oportunidades!"""
-                   else:
+            else:
                 txt = f"""👋 Welcome to the {stype_label} Plan, {username}! Welcome to the Crypto Signal Bot VIP Group!
 
 📈 Real-Time Trading | Maximum Accuracy | Proven Results
