@@ -37,20 +37,22 @@ DELTA_IMAGE_URL = "https://cryptosignalbot.com/wp-content/uploads/2025/03/delta-
 RENEWAL_URL     = "https://cryptosignalbot.com/mi-cuenta"
 LOG_FILE        = "csb_events.log"
 
-# Duraciones y grupos
+# Planes y sus tiempos
 PLANS = {
     # FIRE
-    "GRATIS_ES":        {"duration_min":  7*24*60,  "group_id_es": "-1002470074373", "group_id_en": "-1002371800315"},
-    "MES_ES":           {"duration_min": 30*24*60,  "group_id_es": "-1002470074373", "group_id_en": "-1002371800315"},
-    "ANIO_ES":          {"duration_min":365*24*60,  "group_id_es": "-1002470074373", "group_id_en": "-1002371800315"},
+    "GRATIS_ES":        {"duration_min":  7   * 24 * 60,   "group_id_es": "-1002470074373", "group_id_en": "-1002371800315"},
+    "MES_ES":           {"duration_min": 30   * 24 * 60,   "group_id_es": "-1002470074373", "group_id_en": "-1002371800315"},
+    "ANIO_ES":          {"duration_min":365   * 24 * 60,   "group_id_es": "-1002470074373", "group_id_en": "-1002371800315"},
+
     # ÉLITE
-    "GRATIS_ES_ELITE":  {"duration_min": 15*24*60,  "group_id_es": "-1002437381292", "group_id_en": "-1002432864193"},
-    "MES_ES_ELITE":     {"duration_min": 30*24*60,  "group_id_es": "-1002437381292", "group_id_en": "-1002432864193"},
-    "ANIO_ES_ELITE":    {"duration_min":365*24*60,  "group_id_es": "-1002437381292", "group_id_en": "-1002432864193"},
+    "GRATIS_ES_ELITE":  {"duration_min": 15   * 24 * 60,   "group_id_es": "-1002437381292", "group_id_en": "-1002432864193"},
+    "MES_ES_ELITE":     {"duration_min": 30   * 24 * 60,   "group_id_es": "-1002437381292", "group_id_en": "-1002432864193"},
+    "ANIO_ES_ELITE":    {"duration_min":365   * 24 * 60,   "group_id_es": "-1002437381292", "group_id_en": "-1002432864193"},
+
     # DELTA
-    "GRATIS_ES_DELTA":  {"duration_min": 30*24*60,  "group_id_es": "-1002299713092", "group_id_en": "-1002428632182"},
-    "MES_ES_DELTA":     {"duration_min": 30*24*60,  "group_id_es": "-1002299713092", "group_id_en": "-1002428632182"},
-    "ANIO_ES_DELTA":    {"duration_min":365*24*60,  "group_id_es": "-1002299713092", "group_id_en": "-1002428632182"},
+    "GRATIS_ES_DELTA":  {"duration_min": 30   * 24 * 60,   "group_id_es": "-1002299713092", "group_id_en": "-1002428632182"},
+    "MES_ES_DELTA":     {"duration_min": 30   * 24 * 60,   "group_id_es": "-1002299713092", "group_id_en": "-1002428632182"},
+    "ANIO_ES_DELTA":    {"duration_min":365   * 24 * 60,   "group_id_es": "-1002299713092", "group_id_en": "-1002428632182"},
 }
 
 # Etiquetas legibles
@@ -172,11 +174,18 @@ def check_subscriptions():
 
             # Aviso 5 min antes
             if secs <= 300 and not sub.get("avisado"):
-                text = (
-                    f"⏳ Tu suscripción {TYPE_LABELS[stype]} expira en 24 horas. Renueva para no perder acceso."
-                    if lang == "ES"
-                    else f"⏳ Your {TYPE_LABELS[stype]} subscription expires in 24 hours. Renew to keep access."
-                )
+                if lang == "ES":
+                    text = (
+                        "⏳ Tu suscripción "
+                        f"{TYPE_LABELS.get(stype, stype)} expira en 24 Horas. "
+                        "Renueva tu suscripción y mantén el acceso a las señales de trading de Cripto Signal Bot. ¡No pierdas esta oportunidad!"
+                    )
+                else:
+                    text = (
+                        "⏳ Your "
+                        f"{TYPE_LABELS.get(stype, stype)} subscription expires in 24 hours. "
+                        "Renew your subscription and maintain access to Crypto Signal Bot's trading signals. Don't miss this opportunity!"
+                    )
                 requests.post(
                     f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
                     json={
@@ -374,14 +383,57 @@ def telegram_webhook():
                     plan_key = k; lang="EN"; break
             stype = get_sub_type(plan_key) if plan_key else ""
             label = TYPE_LABELS.get(stype,stype)
-            txt = (f"👋 ¡Bienvenido al plan {label}, {username}! …" if lang=="ES"
-                   else f"👋 Welcome to the {label} plan, {username}! …")
-            # (se puede pegar mensaje largo original aquí si se desea)
+            if lang == "ES":
+                txt = f"""👋 ¡Bienvenido al plan {stype_label}, {username}! ¡Bienvenido al Grupo VIP de Crypto Signal Bot!
+
+📈 Señales de trading en tiempo real | Máxima precisión | Resultados comprobados
+
+🔹 Accede a señales de alta precisión para BTC, ETH, XRP, BNB y ADA  
+🔹 Estrategias para scalping, intradía y swing trading  
+🔹 Señales generadas 24/7 según la volatilidad del mercado  
+
+📂 Grupo VIP organizado por temas independientes:  
+🔄 Renovar Suscripción  
+🏆 Análisis de Bitcoin  
+🔹 BTC/USDT  
+🔹 XRP/USDT  
+🔹 BNB/USDT  
+🔹 ETH/USDT  
+🔹 ADA/USDT  
+
+Cada tema funciona como un canal independiente con su propio botón de acceso a la señal.  
+A medida que agreguemos nuevas criptomonedas, se irán generando nuevos temas automáticamente para ofrecer acceso rápido y organizado a cada señal.  
+
+🔗 Accede con un solo clic a las señales y gráficos en vivo en nuestra web  
+🚀 ¡Prepárate para impulsar tu trading con las mejores oportunidades!"""
+                   else:
+                txt = f"""👋 Welcome to the {stype_label} Plan, {username}! Welcome to the Crypto Signal Bot VIP Group!
+
+📈 Real-Time Trading | Maximum Accuracy | Proven Results
+
+🔹 Access high-precision signals for BTC, ETH, XRP, BNB, and ADA  
+🔹 Strategies for scalping, intraday, and swing trading  
+🔹 Signals generated 24/7 based on market volatility  
+
+📂 VIP group organized by separate topics:  
+🔄 Renew Subscription  
+🏆 Bitcoin Analysis  
+🔹 BTC/USDT  
+🔹 XRP/USDT  
+🔹 BNB/USDT  
+🔹 ETH/USDT  
+🔹 ADA/USDT  
+
+Each topic acts like an independent channel with its own signal-access button.  
+As we add new cryptocurrencies, new topics will be generated automatically to provide quick, organized access to each signal.  
+
+🔗 One-click access to live signals and charts on our website  
+🚀 Get ready to boost your trading with the best opportunities!"""
             requests.post(
                 f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                json={"chat_id":chat_id,"text":txt},timeout=10
+                json={"chat_id": chat_id, "text": txt}, timeout=10
             )
-        return jsonify({}),200
+        return jsonify({}), 200
 
     # ─────────── 2) Mensajes de usuario (/start, /misdatos, etc.) ─────
     if "message" in up:
@@ -396,11 +448,10 @@ def telegram_webhook():
             ]]}
             requests.post(
                 f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                json={"chat_id":cid,
-                      "text":"🇪🇸 Pulsa el botón para elegir idioma.\n\n🇺🇸 Tap the button to choose language.",
-                      "reply_markup":kb},
-                timeout=10)
-            return jsonify({}),200
+                json={"chat_id": cid, "text":"🇪🇸 Español\n¡Bienvenido! Pulsa el botón para Selecciona tu idioma y comenzar con nuestras señales VIP.\n\n🇺🇸 English\nWelcome! Click the button to select your language and get started with our VIP signals.", "reply_markup": kb},
+                timeout=10
+            )
+            return jsonify({}), 200
 
         # /start misdatos (atajo)
         if text == "/start misdatos":
@@ -410,9 +461,23 @@ def telegram_webhook():
             ]}
             requests.post(
                 f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                json={"chat_id":cid,"text":"Selecciona idioma / Select language","reply_markup":kb},
-                timeout=10)
-            return jsonify({}),200
+                json={
+                    "chat_id": cid,
+                    "text": """👤 𝐂𝐮𝐞𝐧𝐭𝐚 | 𝐀𝐜𝐜𝐨𝐮𝐧𝐭
+
+🇪🇸 Español
+En tu cuenta podrás ver todas tus suscripciones. Desde esta sección podrás consultar el estado de cada una, el tiempo de suscripción empleado, el tiempo restante y la fecha de vencimiento, así como renovarlas.
+
+🇺🇸 English
+In your account, you can see all your subscriptions. From this section, you can check the status of each one, the subscription time used, the time remaining, and the expiration date, as well as renew them.
+
+Selecciona tu idioma para continuar.
+Select your language to continue.""",
+                    "reply_markup": kb
+                },
+                timeout=10
+            )
+            return jsonify({}), 200
 
         # /start {token}
         if text.startswith("/start ") and cid:
@@ -435,36 +500,78 @@ def telegram_webhook():
                 {"text":"🇪🇸 Español","callback_data":f"lang|ES|{email}"},
                 {"text":"🇺🇸 English","callback_data":f"lang|EN|{email}"}
             ]]}
-            requests.post(
+            resp = requests.post(
                 f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                json={"chat_id":cid,
-                      "text":"📊 Selecciona tu idioma / Select your language",
-                      "reply_markup":kb},
-                timeout=10)
-            return jsonify({}),200
+                json={
+                    "chat_id": cid,
+                    "text": """📊 𝐒𝐞ñ𝐚𝐥𝐞𝐬 𝐕𝐈𝐏 | 𝐕𝐈𝐏 𝐒𝐢𝐠𝐧𝐚𝐥𝐬
 
-        # /misdatos
-        if text == "/misdatos":
-            kb={"inline_keyboard":[
+🇪🇸 Español
+𝐈𝐌𝐏𝐎𝐑𝐓𝐀𝐍𝐓𝐄: Al seleccionar tu idioma, generarás el acceso para unirte al grupo privado y comenzar a recibir las señales en tiempo real.
+
+En el menú de este bot podrás ver tu cuenta y tus suscripciones, así como renovar tu suscripción y tu fecha de corte.
+
+🇺🇸 English
+𝐈𝐌𝐏𝐎𝐑𝐓𝐀𝐍𝐓: By selecting your language, you will generate access to join the private group and start receiving real-time signals.
+
+In this bot’s menu you can view your account and your subscriptions, as well as renew your subscription and its expiration date.
+
+Selecciona tu idioma para continuar.
+Select your language to continue.""",
+                    "reply_markup": kb
+                },
+                timeout=10
+            ).json()
+
+            mid = resp.get("result", {}).get("message_id")
+            if mid:
+                info.setdefault("messages", []).append(mid)
+                users[email] = info
+                save_users(users)
+
+            return jsonify({}), 200
+
+        # 4) /misdatos comando manual (original)
+        if text == "/misdatos" and cid:
+            kb = {"inline_keyboard":[
                 [{"text":"🇪🇸 Español","callback_data":"misdatos_lang|ES"}],
                 [{"text":"🇺🇸 English","callback_data":"misdatos_lang|EN"}]
             ]}
             requests.post(
                 f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                json={"chat_id":cid,"text":"Selecciona idioma / Select language","reply_markup":kb},
-                timeout=10)
-            return jsonify({}),200
+                json={
+                    "chat_id": cid,
+                    "text": """👤 𝐂𝐮𝐞𝐧𝐭𝐚 | 𝐀𝐜𝐜𝐨𝐮𝐧𝐭
 
-        # texto libre => orientar a soporte
-        if text and not text.startswith("/"):
-            kb={"inline_keyboard":[[
-                {"text":"🌐 Soporte","url":"https://t.me/CriptoSignalBotGestion_bot"}
+🇪🇸 Español
+En tu cuenta podrás ver todas tus suscripciones. Desde esta sección podrás consultar el estado de cada una, el tiempo de suscripción empleado, el tiempo restante y la fecha de vencimiento, así como renovarlas.
+
+🇺🇸 English
+In your account, you can see all your subscriptions. From this section, you can check the status of each one, the subscription time used, the time remaining, and the expiration date, as well as renew them.
+
+Selecciona tu idioma para continuar.
+Select your language to continue.""",
+                    "reply_markup": kb
+                },
+                timeout=10
+            )
+            return jsonify({}), 200
+        # 5) Soporte para texto libre (no comando), ignorar 🎁 VIP Gratis y 🎁 VIP Free
+        if text and not text.startswith("/") and text not in ["🎁 Acceso a Señales VIP Gratis", "🎁 Access Signal VIP Free", "📊 Análisis BTC - BTC Analysis"]:
+            kb = {"inline_keyboard":[[
+                {"text":"🇪🇸 Español","url":"https://t.me/CriptoSignalBotGestion_bot?start=68519f3993f15cf1aa079c62"},
+                {"text":"🇺🇸 English","url":"https://t.me/CriptoSignalBotGestion_bot?start=68519fa69049c36b2a0e9485"}
             ]]}
             requests.post(
                 f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                json={"chat_id":cid,"text":"Bot automático. Usa el menú.", "reply_markup":kb},
-                timeout=10)
-            return jsonify({}),200
+                json={
+                    "chat_id": cid,
+                    "text": "\nBot automático. Para asesoría, elige un idioma.\n\nAutomated bot. Choose a language for assistance.",
+                    "reply_markup": kb
+                },
+                timeout=10
+            )
+            return jsonify({}), 200
 
     # ─────────── 3) Callback Queries (botones)  ────────────────────────
     if "callback_query" in up:
@@ -497,18 +604,22 @@ def telegram_webhook():
             users[email] = info
             save_users(users)
 
-            btn     = [{"text":"🏆 Unirme o Renovar / Join or Renew", "url":link}]
-            caption = ("🚀 ¡Bienvenido! Pulsa aquí👇 para acceder o renovar." if lang=="ES"
-                       else "🚀 Welcome! Tap here👇 to join or renew.")
-            img_url = FIRE_IMAGE_URL if get_sub_type(plan_key)=="Fire" else \
-                      ELITE_IMAGE_URL if get_sub_type(plan_key)=="Élite" else DELTA_IMAGE_URL
-
+            btn = [{"text":"🏆 Unirme o Renovar / Join or Renew","url":link}]
+            caption = (
+                "🚀 ¡Bienvenido! Pulsa aquí👇 para acceder a señales VIP y mejorar tu trading 🔔\n"
+                "Si ya eres miembro, pulsa igual para 🔄 renovar tu acceso y seguir disfrutando de análisis en tiempo real."
+                if lang=="ES"
+                else
+                "🚀 Welcome! Tap here👇 to access VIP signals and boost your trading 🔔\n"
+                "If you’re already a member, tap again to 🔄 renew your access and keep enjoying real-time analysis."
+            )
+            img_url = FIRE_IMAGE_URL if get_sub_type(plan_key)=="Fire" else ELITE_IMAGE_URL if get_sub_type(plan_key)=="Élite" else DELTA_IMAGE_URL
             requests.post(
                 f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto",
-                json={"chat_id":cid,"photo":img_url,"caption":caption,
-                      "reply_markup":{"inline_keyboard":[btn]}},
-                timeout=10)
-            return jsonify({}),200
+                json={"chat_id": cid, "photo": img_url, "caption": caption, "reply_markup":{"inline_keyboard":[btn]}},
+                timeout=10
+            )
+            return jsonify({}), 200
 
         # --- /misdatos idioma ---
         if data.startswith("misdatos_lang|"):
@@ -556,36 +667,69 @@ def telegram_webhook():
                 timeout=10)
             return jsonify({}),200
 
-        # --- Sub-menú renovación ---
-        if data.startswith("renovar_menu|"):
-            _, stype = data.split("|",1)
-            lang = next((i.get("lang","ES") for i in users.values() if i.get("chat_id")==cid),"ES")
-            # URLs de renovación (ejemplo)
-            if stype=="Fire":
-                url_mes="https://cryptosignalbot.com/?renewal=1"
-                url_an="https://cryptosignalbot.com/?anual=1"
-            elif stype=="Élite":
-                url_mes="https://cryptosignalbot.com/?renewal_elite=1"
-                url_an ="https://cryptosignalbot.com/?annual_elite=1"
-            else: # Delta
-                url_mes="https://cryptosignalbot.com/?renewal_delta=1"
-                url_an ="https://cryptosignalbot.com/?annual_delta=1"
-            if lang=="ES":
-                txt = f"Selecciona periodo de renovación para {stype}:"
-                b1,b2 = {"text":"🔄 Renovar Mes","url":url_mes},{"text":"🔄 Renovar Año","url":url_an}
-            else:
-                txt = f"Select renewal period for {stype}:"
-                b1,b2 = {"text":"🔄 Renew Month","url":url_mes},{"text":"🔄 Renew Year","url":url_an}
+        # Sub-menú renovar
+        if "callback_query" in up and data.startswith("renovar_menu|"):
+            _, stype = data.split("|", 1)
+            lang = next((inf.get("lang", "ES") for inf in users.values() if inf.get("chat_id") == cid), "ES")
 
+            if stype == "Fire":
+                url_mes   = "https://cryptosignalbot.com/?renewal=1"
+                url_anual = "https://cryptosignalbot.com/?anual=1"
+            elif stype == "Élite":
+                url_mes   = "https://cryptosignalbot.com/?renewal_elite=1"
+                url_anual = "https://cryptosignalbot.com/?annual_elite=1"
+            elif stype == "Delta":
+                url_mes   = "https://cryptosignalbot.com/?renewal_delta=1"
+                url_anual = "https://cryptosignalbot.com/?annual_delta=1"
+            else:
+                url_mes = url_anual = RENEWAL_URL
+
+            if stype == "Fire":
+                if lang == "ES":
+                    text = "Selecciona periodo de renovación para Fire:"
+                    btn1 = {"text": "🔄 Renovar Mes $17", "url": url_mes}
+                    btn2 = {"text": "🔄 Renovar Año 204$ (–30%) = 142$", "url": url_anual}
+                else:
+                    text = "Select renewal period for Fire:"
+                    btn1 = {"text": "🔄 Renew Month $17", "url": url_mes}
+                    btn2 = {"text": "🔄 Renew Year 204$ (–30%) = 142$", "url": url_anual}
+            elif stype == "Élite":
+                if lang == "ES":
+                    text = "Selecciona periodo de renovación para Élite:"
+                    btn1 = {"text": "🔄 Renovar 1 Mes $25", "url": url_mes}
+                    btn2 = {"text": "🔄 Renovar Año 300$ (–30%) = 210$", "url": url_anual}
+                else:
+                    text = "Select renewal period for Élite:"
+                    btn1 = {"text": "🔄 Renew Month $25", "url": url_mes}
+                    btn2 = {"text": "🔄 Renew Year 300$ (–30%) = 210$", "url": url_anual}
+            elif stype == "Delta":
+                if lang == "ES":
+                    text = "Selecciona periodo de renovación para Delta:"
+                    btn1 = {"text": "🔄 Renovar 1 Mes $31", "url": url_mes}
+                    btn2 = {"text": "🔄 Renovar Año 372$ (–30%) = 260$", "url": url_anual}
+                else:
+                    text = "Select renewal period for Delta:"
+                    btn1 = {"text": "🔄 Renew Month $31", "url": url_mes}
+                    btn2 = {"text": "🔄 Renew Year 372$ (–30%) = 260$", "url": url_anual}
+            else:
+                if lang == "ES":
+                    text = f"Selecciona periodo de renovación para {stype}:"
+                    btn1 = {"text": "🔄 Renovar suscripción", "url": url_mes}
+                    btn2 = {"text": "🔄 Renovar suscripción", "url": url_anual}
+                else:
+                    text = f"Select renewal period for {stype}:"
+                    btn1 = {"text": "🔄 Renew subscription", "url": url_mes}
+                    btn2 = {"text": "🔄 Renew subscription", "url": url_anual}
+
+            kb = {"inline_keyboard": [[btn1], [btn2]]}
             requests.post(
                 f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                json={"chat_id":cid,"text":txt,
-                      "reply_markup":{"inline_keyboard":[[b1],[b2]]}},
-                timeout=10)
-            return jsonify({}),200
+                json={"chat_id": cid, "text": text, "reply_markup": kb},
+                timeout=10
+            )
+            return jsonify({}), 200
 
-    # Nada que procesar
-    return jsonify({}),200
+    return jsonify({}), 200
 
 # ─────────────────────────────────  MAIN  ──────────────────────────────────────
 if __name__ == "__main__":
