@@ -431,7 +431,9 @@ As we add new cryptocurrencies, new topics will be generated automatically to pr
 
         # 1) Deep-link sin token: iniciar flujo SendPulse
         if text == "/start":
-            kb = {"inline_keyboard":[[{"text":"🌐 Idioma/Language","url":"https://t.me/CriptoSignalBotGestion_bot?start=6848494ba35fe4e8f30495ea"}]]}
+            kb = {"inline_keyboard":[[
+                {"text":"🌐 Idioma/Language","url":"https://t.me/CriptoSignalBotGestion_bot?start=6848494ba35fe4e8f30495ea"}
+            ]]}
             requests.post(
                 f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
                 json={"chat_id": cid, "text":"🇪🇸 Español\n¡Bienvenido! Pulsa el botón para Selecciona tu idioma y comenzar con nuestras señales VIP.\n\n🇺🇸 English\nWelcome! Click the button to select your language and get started with our VIP signals.", "reply_markup": kb},
@@ -441,10 +443,15 @@ As we add new cryptocurrencies, new topics will be generated automatically to pr
 
         # 2) Deep-link misdatos
         if text == "/start misdatos":
-            kb = {"inline_keyboard":[[{"text":"🇪🇸 Español","callback_data":"misdatos_lang|ES"}],[{"text":"🇺🇸 English","callback_data":"misdatos_lang|EN"}]]}
+            kb = {"inline_keyboard":[
+                [{"text":"🇪🇸 Español","callback_data":"misdatos_lang|ES"}],
+                [{"text":"🇺🇸 English","callback_data":"misdatos_lang|EN"}]
+            ]}
             requests.post(
                 f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                json={"chat_id": cid, "text": """👤 𝐂𝐮𝐞𝐧𝐭𝐚 | 𝐀𝐜𝐜𝐨𝐮𝐧𝐭
+                json={
+                    "chat_id": cid,
+                    "text": """👤 𝐂𝐮𝐞𝐧𝐭𝐚 | 𝐀𝐜𝐜𝐨𝐮𝐧𝐭
 
 🇪🇸 Español
 En tu cuenta podrás ver todas tus suscripciones. Desde esta sección podrás consultar el estado de cada una, el tiempo de suscripción empleado, el tiempo restante y la fecha de vencimiento, así como renovarlas.
@@ -453,12 +460,14 @@ En tu cuenta podrás ver todas tus suscripciones. Desde esta sección podrás co
 In your account, you can see all your subscriptions. From this section, you can check the status of each one, the subscription time used, the time remaining, and the expiration date, as well as renew them.
 
 Selecciona tu idioma para continuar.
-Select your language to continue.""", "reply_markup": kb},
+Select your language to continue.""",
+                    "reply_markup": kb
+                },
                 timeout=10
             )
             return jsonify({}), 200
 
-        # 3) /start con token de registro (original) — aquí añadimos INVITE LINK
+        # 3) /start con token de registro (original)
         if text.startswith("/start ") and cid:
             token = text.split(maxsplit=1)[1]
             if len(token) % 4:
@@ -475,62 +484,33 @@ Select your language to continue.""", "reply_markup": kb},
 
             # Guardar chat_id
             info["chat_id"] = cid
-
-            # —————— GENERAMOS Y GUARDAMOS EL ENLACE de inmediato ——————
-            stype = info.get("pending_sub")
-            plan_key = info["suscripciones"][stype]["plan"]
-            lang = info.get("lang", "ES")
-            grp = PLANS[plan_key][f"group_id_{lang.lower()}"]
-            link = enlace_unico(grp)
-            info["suscripciones"][stype]["invite_link"] = link
-            # ——————————————————————————————————————————————
-
             users[email] = info
             save_users(users)
 
-            # Ahora enviamos directamente el botón con el enlace
-            kb = {"inline_keyboard":[[{"text":"🏆 Unirme o Renovar / Join or Renew","url":link}]]}
-            img_url = FIRE_IMAGE_URL if get_sub_type(plan_key)=="Fire" else ELITE_IMAGE_URL if get_sub_type(plan_key)=="Élite" else DELTA_IMAGE_URL
-            caption = (
-                "🚀 ¡Bienvenido! Pulsa aquí👇 para acceder a señales VIP y mejorar tu trading 🔔\n"
-                "Si ya eres miembro, pulsa igual para 🔄 renovar tu acceso y seguir disfrutando de análisis en tiempo real."
-                if info.get("lang","ES")=="ES"
-                else
-                "🚀 Welcome! Tap here👇 to access VIP signals and boost your trading 🔔\n"
-                "If you’re already a member, tap again to 🔄 renew your access and keep enjoying real-time analysis."
-            )
-            requests.post(
-                f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto",
-                json={"chat_id": cid, "photo": img_url, "caption": caption, "reply_markup": kb},
-                timeout=10
-            )
-            return jsonify({}), 200
-
-        # 4) /misdatos comando manual (original)
-        if text == "/misdatos" and cid:
-            kb = {"inline_keyboard":[[{"text":"🇪🇸 Español","callback_data":"misdatos_lang|ES"}],[{"text":"🇺🇸 English","callback_data":"misdatos_lang|EN"}]]}
+            kb = {"inline_keyboard":[[
+                {"text":"🇪🇸 Español","callback_data":f"lang|ES|{email}"},
+                {"text":"🇺🇸 English","callback_data":f"lang|EN|{email}"}
+            ]]}
             requests.post(
                 f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                json={"chat_id": cid, "text": """👤 𝐂𝐮𝐞𝐧𝐭𝐚 | 𝐀𝐜𝐜𝐨𝐮𝐧𝐭
+                json={
+                    "chat_id": cid,
+                    "text": """📊 𝐒𝐞ñ𝐚𝐥𝐞𝐬 𝐕𝐈𝐏 | 𝐕𝐈𝐏 𝐒𝐢𝐠𝐧𝐚𝐥𝐬
 
 🇪🇸 Español
-En tu cuenta podrás ver todas tus suscripciones. Desde esta sección podrás consultar el estado de cada una, el tiempo de suscripción empleado, el tiempo restante y la fecha de vencimiento, así como renovarlas.
+𝐈𝐌𝐏𝐎𝑅𝐓𝐀𝐍𝐓𝐄: Al seleccionar tu idioma, generarás el acceso para unirte al grupo privado y comenzar a recibir las señales en tiempo real.
+
+En el menú de este bot podrás ver tu cuenta y tus suscripciones, así como renovar tu suscripción y tu fecha de corte.
 
 🇺🇸 English
-In your account, you can see all your subscriptions. From this section, you can check the status of each one, the subscription time used, the time remaining, and the expiration date, as well as renew them.
+𝐈𝐌𝐏𝐎𝐑𝐓𝐀𝐍𝐓: By selecting your language, you will generate access to join the private group and start receiving real-time signals.
+
+In this bot’s menu you can view your account and your subscriptions, as well as renew your subscription and its expiration date.
 
 Selecciona tu idioma para continuar.
-Select your language to continue.""", "reply_markup": kb},
-                timeout=10
-            )
-            return jsonify({}), 200
-
-        # 5) Soporte para texto libre (no comando), ignorar 🎁 VIP Gratis y 🎁 VIP Free
-        if text and not text.startswith("/") and text not in ["🎁 Acceso a Señales VIP Gratis", "🎁 Access Signal VIP Free," "📊 Análisis BTC - BTC Analysis"]:
-            kb = {"inline_keyboard":[[{"text":"🇪🇸 Español","url":"https://t.me/CriptoSignalBotGestion_bot?start=68519f3993f15cf1aa079c62"},{"text":"🇺🇸 English","url":"https://t.me/CriptoSignalBotGestion_bot?start=68519fa69049c36b2a0e9485"}]]}
-            requests.post(
-                f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                json={"chat_id": cid, "text":"\nBot automático. Para asesoría, elige un idioma.\n\nAutomated bot. Choose a language for assistance.","reply_markup":kb},
+Select your language to continue.""",
+                    "reply_markup": kb
+                },
                 timeout=10
             )
             return jsonify({}), 200
@@ -549,11 +529,25 @@ Select your language to continue.""", "reply_markup": kb},
             if not info or info.get("chat_id") != cid:
                 return jsonify({}), 200
             info["lang"] = lang
+
+            # ─── Aquí corregimos para que, si pending_sub no existe, elija la suscripción más reciente ───
             stype = info.pop("pending_sub", None)
-            sub   = info.get("suscripciones", {}).get(stype)
+            if not stype:
+                latest_ing = datetime.min
+                for st, sb in info.get("suscripciones", {}).items():
+                    try:
+                        ing = datetime.fromisoformat(sb.get("ingreso"))
+                    except:
+                        continue
+                    if ing > latest_ing:
+                        latest_ing = ing
+                        stype = st
+            # ────────────────────────────────────────────────────────────────────────────────────────────
+
+            sub      = info["suscripciones"].get(stype)
             plan_key = sub.get("plan")
-            grp = PLANS[plan_key][f"group_id_{lang.lower()}"]
-            link = enlace_unico(grp)
+            grp      = PLANS[plan_key][f"group_id_{lang.lower()}"]
+            link     = enlace_unico(grp)
             info["suscripciones"][stype]["invite_link"] = link
             users[email] = info
             save_users(users)
