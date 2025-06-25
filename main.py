@@ -262,11 +262,6 @@ scheduler.start()
 
 # ────────────────────────────  ENDPOINTS FLASK  ───────────────────────────────
 
-@app.route("/revisar", methods=["GET"])
-def revisar():
-    check_subscriptions()
-    return jsonify({"status":"ok"}), 200
-
 @app.route("/agregar-suscripcion", methods=["POST"])
 def agregar_suscripción():
     d = request.get_json(silent=True) or {}
@@ -277,17 +272,18 @@ def agregar_suscripción():
     telefono = d.get("telefono", "")
 
     if not email or plan not in PLANS:
-        return jsonify({"status":"error","msg":"datos inválidos"}), 400
+        return jsonify({"status": "error", "msg": "datos inválidos"}), 400
 
     users = load_users()
     now   = datetime.utcnow()
     info  = users.get(email, {"suscripciones":{}})
 
-    lang  = info.get("lang", "ES")
-    subs  = info["suscripciones"]
-    stype = get_sub_type(plan)
+    lang   = info.get("lang", "ES")            # puede que aún no exista
+    cid    = info.get("chat_id")               # idem
+    subs   = info["suscripciones"]
+    stype  = get_sub_type(plan)
 
-    # Cálculo de nueva expiración (acumula si aún está activa)
+    # ─── fecha de expiración (acumula si sigue activa) ─────────────────
     base = now
     if stype in subs:
         try:
@@ -303,23 +299,61 @@ def agregar_suscripción():
         "ingreso":     subs[stype]["ingreso"] if stype in subs else now.isoformat(),
         "expira":      exp_new.isoformat(),
         "avisado":     False,
-        "invite_link": subs[stype].get("invite_link") if stype in subs else None
+        "invite_link": None       # se rellenará más abajo (si procede)
     }
 
-    # Guardamos resto de datos
+    # ─── guardamos datos básicos ───────────────────────────────────────
     info.update({
         "nombre": nombre,
         "apellido": apellido,
         "telefono": telefono,
-        "chat_id": info.get("chat_id"),
+        "chat_id": cid,
         "lang": lang,
-        "suscripciones": subs,
-        "pending_sub": stype          # usado luego en /start
+        "suscripciones": subs
     })
     users[email] = info
+
+    # ─── Si ya sabemos lang y chat_id, creamos y enviamos el enlace ────
+    if cid and lang and stype:
+        grp  = PLANS[plan][f"group_id_{lang.lower()}"]
+        link = enlace_unico(grp)
+        if link:
+            subs[stype]["invite_link"] = link
+
+            # elegimos imagen según tipo
+            if stype == "Fire":
+                img_url = FIRE_IMAGE_URL
+            elif stype == "Élite":
+                img_url = ELITE_IMAGE_URL
+            else:                       # Delta u otro futuro
+                img_url = DELTA_IMAGE_URL
+
+            caption = (
+                "🏆 Pulsa aquí👇 para unirte al nuevo grupo VIP o renovar tu acceso."
+                if lang == "ES" else
+                "🏆 Tap here👇 to join the new VIP group or renew your access."
+            )
+            btn = {"text": "🔗 Acceder / Join", "url": link}
+
+            # enviamos la foto con el botón
+            requests.post(
+                f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto",
+                json={
+                    "chat_id": cid,
+                    "photo":   img_url,
+                    "caption": caption,
+                    "reply_markup": {"inline_keyboard": [[btn]]}
+                },
+                timeout=10
+            )
+
+    # ─── persistimos cambios ───────────────────────────────────────────
     save_users(users)
 
-    return jsonify({"status":"ok","sub_type":stype,"expira":exp_new.isoformat()}), 200
+    return jsonify({"status":"ok",
+                    "sub_type": stype,
+                    "expira":   exp_new.isoformat(),
+                    "link":     subs[stype]["invite_link"]}), 200
 
 @app.route("/usuarios-activos")
 def usuarios_activos():
