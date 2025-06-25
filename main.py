@@ -2,16 +2,10 @@
 """
 main.py – Crypto Signal Bot 🔥 gestión avanzada multi-suscripciones
 
-• Base de datos en Google Sheets (usuarios, planes, fechas)
-• Avisos −5 min y expulsión al vencer (7/15/30 días según plan), sin ban
-• Mensaje −5 min con botón “🔄 Renovar suscripción” (sub-menú)
-• Mensaje 0 min con botón “🔄 Renovar suscripción” (sub-menú)
-• /start  ➜ idioma ➜ enlace único (1 uso, 24 h) + foto de bienvenida
-• Mensaje de bienvenida automático en el grupo según plan
-• /misdatos  ➜ idioma ➜ datos + botones de renovación
-• /usuarios-activos  ➜ tabla HTML con datos en vivo
-• Revisión cada minuto (APScheduler)
-• /ping  ➜ mantiene la app despierta
+• Almacena usuarios y suscripciones en Google Sheets (ya NO usa JSON local)
+• Avisos −5 min antes y expulsión al vencer (7/15/30 d según plan), sin ban
+• Mensajes de renovación, bienvenida, /misdatos, tabla /usuarios-activos, /ping
+• Revisión automática cada minuto con APScheduler
 """
 
 from flask import Flask, request, jsonify, render_template_string
@@ -22,58 +16,50 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 app = Flask(__name__)
 
-# ─────────────────────────  PING / HEALTH-CHECK  ──────────────────────────────
-@app.route("/ping", methods=["GET"])
-def ping():
-    return "pong", 200
-
-# ─────────────────────────  CONFIGURACIÓN GENERAL  ────────────────────────────
-BOT_TOKEN       = "7457058289:AAF-VN0UWiduteBV79VdKxgIT2yeg9wa-LQ"
-
-FIRE_IMAGE_URL  = "https://cryptosignalbot.com/wp-content/uploads/2025/02/Fire-Scalping-Senales-de-Trading-para-Ganar-Mas-en-Cripto-3.png"
-ELITE_IMAGE_URL = "https://cryptosignalbot.com/wp-content/uploads/2025/02/ELITE-Scalping-Intradia-Senales-en-Tiempo-Real.png"
-DELTA_IMAGE_URL = "https://cryptosignalbot.com/wp-content/uploads/2025/03/delta-swing-trading-crypto-signal.png"
-
-RENEWAL_URL     = "https://cryptosignalbot.com/mi-cuenta"
-LOG_FILE        = "csb_events.log"
+# ───────── CONFIGURACIÓN ──────────
+BOT_TOKEN        = "7457058289:AAF-VN0UWiduteBV79VdKxgIT2yeg9wa-LQ"
+FIRE_IMAGE_URL   = "https://cryptosignalbot.com/wp-content/uploads/2025/02/Fire-Scalping-Senales-de-Trading-para-Ganar-Mas-en-Cripto-3.png"
+ELITE_IMAGE_URL  = "https://cryptosignalbot.com/wp-content/uploads/2025/02/ELITE-Scalping-Intradia-Senales-en-Tiempo-Real.png"
+DELTA_IMAGE_URL  = "https://cryptosignalbot.com/wp-content/uploads/2025/03/delta-swing-trading-crypto-signal.png"
+RENEWAL_URL      = "https://cryptosignalbot.com/mi-cuenta"
+LOG_FILE         = "csb_events.log"
 
 # Planes y sus tiempos
 PLANS = {
     # FIRE
-    "GRATIS_ES":        {"duration_min":  7   * 24 * 60,   "group_id_es": "-1002470074373", "group_id_en": "-1002371800315"},
-    "MES_ES":           {"duration_min": 30   * 24 * 60,   "group_id_es": "-1002470074373", "group_id_en": "-1002371800315"},
-    "ANIO_ES":          {"duration_min":365   * 24 * 60,   "group_id_es": "-1002470074373", "group_id_en": "-1002371800315"},
-
+    "GRATIS_ES":        {"duration_min":   7 * 24 * 60,  "group_id_es": "-1002470074373", "group_id_en": "-1002371800315"},
+    "MES_ES":           {"duration_min":  30 * 24 * 60,  "group_id_es": "-1002470074373", "group_id_en": "-1002371800315"},
+    "ANIO_ES":          {"duration_min": 365 * 24 * 60,  "group_id_es": "-1002470074373", "group_id_en": "-1002371800315"},
     # ÉLITE
-    "GRATIS_ES_ELITE":  {"duration_min": 15   * 24 * 60,   "group_id_es": "-1002437381292", "group_id_en": "-1002432864193"},
-    "MES_ES_ELITE":     {"duration_min": 30   * 24 * 60,   "group_id_es": "-1002437381292", "group_id_en": "-1002432864193"},
-    "ANIO_ES_ELITE":    {"duration_min":365   * 24 * 60,   "group_id_es": "-1002437381292", "group_id_en": "-1002432864193"},
-
+    "GRATIS_ES_ELITE":  {"duration_min":  15 * 24 * 60,  "group_id_es": "-1002437381292", "group_id_en": "-1002432864193"},
+    "MES_ES_ELITE":     {"duration_min":  30 * 24 * 60,  "group_id_es": "-1002437381292", "group_id_en": "-1002432864193"},
+    "ANIO_ES_ELITE":    {"duration_min": 365 * 24 * 60,  "group_id_es": "-1002437381292", "group_id_en": "-1002432864193"},
     # DELTA
-    "GRATIS_ES_DELTA":  {"duration_min": 30   * 24 * 60,   "group_id_es": "-1002299713092", "group_id_en": "-1002428632182"},
-    "MES_ES_DELTA":     {"duration_min": 30   * 24 * 60,   "group_id_es": "-1002299713092", "group_id_en": "-1002428632182"},
-    "ANIO_ES_DELTA":    {"duration_min":365   * 24 * 60,   "group_id_es": "-1002299713092", "group_id_en": "-1002428632182"},
+    "GRATIS_ES_DELTA":  {"duration_min":  30 * 24 * 60,  "group_id_es": "-1002299713092", "group_id_en": "-1002428632182"},
+    "MES_ES_DELTA":     {"duration_min":  30 * 24 * 60,  "group_id_es": "-1002299713092", "group_id_en": "-1002428632182"},
+    "ANIO_ES_DELTA":    {"duration_min": 365 * 24 * 60,  "group_id_es": "-1002299713092", "group_id_en": "-1002428632182"},
 }
 
 # Etiquetas legibles
 LABELS = {
-    "GRATIS_ES":"𝐅𝐢𝐫𝐞 𝐒𝐜𝐚𝐥𝐩𝐢𝐧𝐠 · Gratis 7 días",
-    "MES_ES":"𝐅𝐢𝐫𝐞 𝐒𝐜𝐚𝐥𝐩𝐢𝐧𝐠 · Mensual",
-    "ANIO_ES":"𝐅𝐢𝐫𝐞 𝐒𝐜𝐚𝐥𝐩𝐢𝐧𝐠 · Anual",
-    "GRATIS_ES_ELITE":"𝐄𝐋𝐈𝐓𝐄 · Gratis 15 días",
-    "MES_ES_ELITE":"𝐄𝐋𝐈𝐓𝐄 · Mensual",
-    "ANIO_ES_ELITE":"𝐄𝐋𝐈𝐓𝐄 · Anual",
-    "GRATIS_ES_DELTA":"𝐃𝐄𝐋𝐓𝐀 Swing · Gratis 30 días",
-    "MES_ES_DELTA":"𝐃𝐄𝐋𝐓𝐀 Swing · Mensual",
-    "ANIO_ES_DELTA":"𝐃𝐄𝐋𝐓𝐀 Swing · Anual",
+    "GRATIS_ES":        "𝐅𝐢𝐫𝐞 𝐒𝐜𝐚𝐥𝐩𝐢𝐧𝐠 · Gratis 7 días",
+    "MES_ES":           "𝐅𝐢𝐫𝐞 𝐒𝐜𝐚𝐥𝐩𝐢𝐧𝐠 · Mensual",
+    "ANIO_ES":          "𝐅𝐢𝐫𝐞 𝐒𝐜𝐚𝐥𝐩𝐢𝐧𝐠 · Anual",
+    "GRATIS_ES_ELITE":  "𝐄𝐋𝐈𝐓𝐄 · Gratis 15 días",
+    "MES_ES_ELITE":     "𝐄𝐋𝐈𝐓𝐄 · Mensual",
+    "ANIO_ES_ELITE":    "𝐄𝐋𝐈𝐓𝐄 · Anual",
+    "GRATIS_ES_DELTA":  "𝐃𝐄𝐋𝐓𝐀 Swing · Gratis 30 días",
+    "MES_ES_DELTA":     "𝐃𝐄𝐋𝐓𝐀 Swing · Mensual",
+    "ANIO_ES_DELTA":    "𝐃𝐄𝐋𝐓𝐀 Swing · Anual",
 }
+
 TYPE_LABELS = {
     "Fire":  "🔥 𝐅𝐢𝐫𝐞 𝐒𝐜𝐚𝐥𝐩𝐢𝐧𝐠",
     "Élite": "💎 𝐄𝐋𝐈𝐓𝐄 𝐒𝐜𝐚𝐥𝐩𝐢𝐧𝐠 𝐏𝐑𝐎",
     "Delta": "🪙 𝐃𝐄𝐋𝐓𝐀 Swing",
 }
 
-# ─────────────────────────────  LOGGING  ───────────────────────────────────────
+# ───── LOGGING ─────
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)s | %(message)s",
@@ -81,58 +67,69 @@ logging.basicConfig(
 )
 log = logging.getLogger("CSB")
 
-# ───────────────────────  GOOGLE SHEETS helper  ────────────────────────────────
+# ───── HELPERS Google Sheets ─────────────────────────────────────────
 def get_sheet():
+    """Devuelve la pestaña (sheet1) indicada por GS_SHEET_ID."""
     scope = ["https://spreadsheets.google.com/feeds",
              "https://www.googleapis.com/auth/drive"]
     creds_json = json.loads(os.environ["GS_CREDENTIALS_JSON"])
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_json, scope)
     client = gspread.authorize(creds)
-    SPREADSHEET_ID = os.environ["GS_SHEET_ID"]
-    return client.open_by_key(SPREADSHEET_ID).sheet1
+    return client.open_by_key(os.environ["GS_SHEET_ID"]).sheet1
+
 
 def load_users():
-    """Devuelve el diccionario completo de usuarios desde la hoja."""
+    """Carga todos los usuarios desde la hoja → mismo dict que usaba JSON."""
     rows = get_sheet().get_all_records()
     users = {}
     for row in rows:
-        if not row.get("email"):  # fila vacía
+        if not row.get("email"):
             continue
         email = row["email"].strip()
         stype = get_sub_type(row["plan"])
         users.setdefault(email, {
-            "chat_id":       row["chat_id"],
-            "lang":          row["lang"],
+            "chat_id":  row["chat_id"],
+            "lang":     row.get("lang") or "ES",
+            "nombre":   row.get("nombre", ""),
+            "apellido": row.get("apellido", ""),
+            "telefono": row.get("telefono", ""),
             "suscripciones": {}
         })
         users[email]["suscripciones"][stype] = {
             "plan":        row["plan"],
             "ingreso":     row["ingreso"],
             "expira":      row["expira"],
-            "avisado":     False,
+            "avisado":     str(row.get("avisado")).upper() == "TRUE",
             "invite_link": row.get("invite_link") or None
         }
     return users
 
+
 def save_users(users):
-    """Sobrescribe por completo la hoja con el estado en memoria."""
-    data = [["chat_id","email","plan","lang","ingreso","expira","invite_link"]]
+    """Sobrescribe la hoja con el estado actual del diccionario."""
+    data = [["chat_id","email","plan","lang",
+             "ingreso","expira","avisado","invite_link",
+             "nombre","apellido","telefono"]]
     for email, info in users.items():
         for sub in info["suscripciones"].values():
             data.append([
-                info["chat_id"],
+                info.get("chat_id",""),
                 email,
                 sub["plan"],
-                info["lang"],
+                info.get("lang","ES"),
                 sub["ingreso"],
                 sub["expira"],
-                sub.get("invite_link") or ""
+                str(sub.get("avisado", False)),
+                sub.get("invite_link") or "",
+                info.get("nombre",""),
+                info.get("apellido",""),
+                info.get("telefono","")
             ])
     sh = get_sheet()
     sh.clear()
     sh.update(data)
 
-# ──────────────────────────────  HELPERS  ──────────────────────────────────────
+# ───── OTROS HELPERS ────────────────────────────────────────────────
 def get_sub_type(plan_key: str) -> str:
     if plan_key.endswith("_ELITE"):
         return "Élite"
@@ -140,8 +137,9 @@ def get_sub_type(plan_key: str) -> str:
         return "Delta"
     return "Fire"
 
+
 def enlace_unico(group_id: str) -> str | None:
-    """Crea un enlace de invitación de 1 uso que expira en 24 h."""
+    """Crea un enlace de invitación (1 uso, 24 h) al grupo de Telegram."""
     try:
         expire_ts = int((datetime.utcnow() + timedelta(hours=24)).timestamp())
         r = requests.post(
@@ -154,7 +152,7 @@ def enlace_unico(group_id: str) -> str | None:
         log.error(f"createChatInviteLink failed: {e}")
         return None
 
-# ───────────────────────  CHEQUEO DE SUSCRIPCIONES  ───────────────────────────
+# ───── CHEQUEO DE SUSCRIPCIONES ─────────────────────────────────────
 def check_subscriptions():
     users = load_users()
     now   = datetime.utcnow()
@@ -167,33 +165,30 @@ def check_subscriptions():
 
         for stype, sub in list(subs.items()):
             try:
-                exp_dt = datetime.fromisoformat(sub["expira"])
+                exp = datetime.fromisoformat(sub["expira"])
             except ValueError:
                 continue
-            secs = (exp_dt - now).total_seconds()
+            secs = (exp - now).total_seconds()
 
             # Aviso 5 min antes
             if secs <= 300 and not sub.get("avisado"):
-                if lang == "ES":
-                    text = (
-                        "⏳ Tu suscripción "
-                        f"{TYPE_LABELS.get(stype, stype)} expira en 24 Horas. "
-                        "Renueva tu suscripción y mantén el acceso a las señales de trading de Cripto Signal Bot. ¡No pierdas esta oportunidad!"
-                    )
-                else:
-                    text = (
-                        "⏳ Your "
-                        f"{TYPE_LABELS.get(stype, stype)} subscription expires in 24 hours. "
-                        "Renew your subscription and maintain access to Crypto Signal Bot's trading signals. Don't miss this opportunity!"
-                    )
+                text = (
+                    "⏳ Tu suscripción "
+                    f"{TYPE_LABELS.get(stype, stype)} expira en 24 horas. "
+                    "Renueva tu suscripción y mantén el acceso a las señales de trading de Crypto Signal Bot. ¡No pierdas esta oportunidad!"
+                    if lang == "ES" else
+                    "⏳ Your "
+                    f"{TYPE_LABELS.get(stype, stype)} subscription expires in 24 hours. "
+                    "Renew now to keep receiving Crypto Signal Bot’s real-time trading signals."
+                )
                 requests.post(
                     f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
                     json={
                         "chat_id": cid,
                         "text": text,
                         "reply_markup": {
-                            "inline_keyboard":[[
-                                {"text":"🔄 Renovar / Renew", "callback_data":f"renovar_menu|{stype}"}
+                            "inline_keyboard": [[
+                                {"text": "🔄 Renovar / Renew", "callback_data": f"renovar_menu|{stype}"}
                             ]]
                         }
                     },
@@ -206,7 +201,8 @@ def check_subscriptions():
             if secs <= 0:
                 plan_key = sub["plan"]
                 group_id = PLANS[plan_key][f"group_id_{lang.lower()}"]
-                # Revocar enlace antiguo (si existe)
+
+                # revocar enlace antiguo
                 if sub.get("invite_link"):
                     try:
                         requests.post(
@@ -217,11 +213,10 @@ def check_subscriptions():
                     except Exception as e:
                         log.warning(f"revokeChatInviteLink: {e}")
 
-                # Notificar
                 exp_text = (
                     f"❌ Tu suscripción {TYPE_LABELS[stype]} ha expirado."
-                    if lang == "ES"
-                    else f"❌ Your {TYPE_LABELS[stype]} subscription has expired."
+                    if lang == "ES" else
+                    f"❌ Your {TYPE_LABELS[stype]} subscription has expired."
                 )
                 requests.post(
                     f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
@@ -229,14 +224,14 @@ def check_subscriptions():
                         "chat_id": cid,
                         "text": exp_text,
                         "reply_markup": {
-                            "inline_keyboard":[[
-                                {"text":"🔄 Renovar / Renew", "callback_data":f"renovar_menu|{stype}"}
+                            "inline_keyboard": [[
+                                {"text": "🔄 Renovar / Renew", "callback_data": f"renovar_menu|{stype}"}
                             ]]
                         }
                     },
                     timeout=10
                 )
-                # Expulsar (sin ban)
+                # expulsar sin ban
                 requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/kickChatMember",
                               json={"chat_id": group_id, "user_id": cid}, timeout=10)
                 requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/unbanChatMember",
@@ -245,7 +240,7 @@ def check_subscriptions():
                 subs.pop(stype)
                 modified = True
 
-        # Limpieza si ya no quedan suscripciones
+        # limpieza si no quedan suscripciones
         if not subs:
             users.pop(email)
             modified = True
@@ -255,12 +250,22 @@ def check_subscriptions():
     if modified:
         save_users(users)
 
-# Lanzamos el scheduler
+# Lanzar scheduler
 scheduler = BackgroundScheduler()
 scheduler.add_job(check_subscriptions, trigger="interval", minutes=1)
 scheduler.start()
 
-# ────────────────────────────  ENDPOINTS FLASK  ───────────────────────────────
+# ───── ENDPOINTS ────────────────────────────────────────────────────
+@app.route("/ping", methods=["GET"])
+def ping():
+    return "pong", 200
+
+
+@app.route("/revisar", methods=["GET"])
+def revisar():
+    check_subscriptions()
+    return jsonify({"status": "ok"}), 200
+
 
 @app.route("/agregar-suscripcion", methods=["POST"])
 def agregar_suscripción():
@@ -276,14 +281,14 @@ def agregar_suscripción():
 
     users = load_users()
     now   = datetime.utcnow()
-    info  = users.get(email, {"suscripciones":{}})
+    info  = users.get(email, {"suscripciones": {}})
 
-    lang   = info.get("lang", "ES")            # puede que aún no exista
-    cid    = info.get("chat_id")               # idem
-    subs   = info["suscripciones"]
-    stype  = get_sub_type(plan)
+    lang  = info.get("lang", "ES")
+    cid   = info.get("chat_id")
+    subs  = info["suscripciones"]
+    stype = get_sub_type(plan)
 
-    # ─── fecha de expiración (acumula si sigue activa) ─────────────────
+    # nueva expiración (acumula si sigue activa)
     base = now
     if stype in subs:
         try:
@@ -299,200 +304,150 @@ def agregar_suscripción():
         "ingreso":     subs[stype]["ingreso"] if stype in subs else now.isoformat(),
         "expira":      exp_new.isoformat(),
         "avisado":     False,
-        "invite_link": None       # se rellenará más abajo (si procede)
+        "invite_link": subs.get(stype, {}).get("invite_link")
     }
 
-    # ─── guardamos datos básicos ───────────────────────────────────────
     info.update({
         "nombre": nombre,
         "apellido": apellido,
         "telefono": telefono,
         "chat_id": cid,
         "lang": lang,
-        "suscripciones": subs
+        "suscripciones": subs,
+        "pending_sub": stype          # para /start
     })
     users[email] = info
-
-    # ─── Si ya sabemos lang y chat_id, creamos y enviamos el enlace ────
-    if cid and lang and stype:
-        grp  = PLANS[plan][f"group_id_{lang.lower()}"]
-        link = enlace_unico(grp)
-        if link:
-            subs[stype]["invite_link"] = link
-
-            # elegimos imagen según tipo
-            if stype == "Fire":
-                img_url = FIRE_IMAGE_URL
-            elif stype == "Élite":
-                img_url = ELITE_IMAGE_URL
-            else:                       # Delta u otro futuro
-                img_url = DELTA_IMAGE_URL
-
-            caption = (
-                "🏆 Pulsa aquí👇 para unirte al nuevo grupo VIP o renovar tu acceso."
-                if lang == "ES" else
-                "🏆 Tap here👇 to join the new VIP group or renew your access."
-            )
-            btn = {"text": "🔗 Acceder / Join", "url": link}
-
-            # enviamos la foto con el botón
-            requests.post(
-                f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto",
-                json={
-                    "chat_id": cid,
-                    "photo":   img_url,
-                    "caption": caption,
-                    "reply_markup": {"inline_keyboard": [[btn]]}
-                },
-                timeout=10
-            )
-
-    # ─── persistimos cambios ───────────────────────────────────────────
     save_users(users)
 
-    return jsonify({"status":"ok",
-                    "sub_type": stype,
-                    "expira":   exp_new.isoformat(),
-                    "link":     subs[stype]["invite_link"]}), 200
+    return jsonify({"status": "ok", "sub_type": stype, "expira": exp_new.isoformat()}), 200
 
+
+# ───── /usuarios-activos (igual que antes) ──────────────────────────
 @app.route("/usuarios-activos")
 def usuarios_activos():
     users = load_users()
     now   = datetime.utcnow()
     rows  = []
     for email, info in users.items():
-        lang = info.get("lang","ES")
+        lang = info.get("lang", "ES")
         for stype, sub in info["suscripciones"].items():
-            plan   = sub["plan"]
-            group  = PLANS[plan][f"group_id_{lang.lower()}"]
-            ingreso= sub["ingreso"]
-            expira = sub["expira"]
+            plan    = sub["plan"]
+            group   = PLANS[plan][f"group_id_{lang.lower()}"]
+            ingreso = sub["ingreso"]
+            expira  = sub["expira"]
             try:
                 mins = (datetime.fromisoformat(expira) - now).total_seconds()/60
                 restante = f"{mins:.1f} min"
             except ValueError:
                 restante = "—"
-            rows.append((info["chat_id"], email, stype, plan, lang,
+            rows.append((info.get("chat_id"), email, stype, plan, lang,
                          group, ingreso, expira, restante))
     rows.sort(key=lambda r: float(r[8].split()[0]) if "min" in r[8] else 999)
 
     return render_template_string("""
     <html><head><style>
-    body{font-family:sans-serif;padding:20px}
-    table{border-collapse:collapse;width:100%}
-    th,td{border:1px solid #ccc;padding:8px;text-align:center}
-    th{background:#f4f4f4}
+      body{font-family:sans-serif;padding:20px}
+      table{border-collapse:collapse;width:100%}
+      th,td{border:1px solid #ccc;padding:8px;text-align:center}
+      th{background:#f4f4f4}
     </style></head><body>
-    <h2>Usuarios activos</h2>
-    <table>
-      <tr>
-        <th>Chat ID</th><th>Email</th><th>Tipo</th><th>Plan</th><th>Idioma</th>
-        <th>Grupo</th><th>Ingreso</th><th>Expira</th><th>Restante</th>
-      </tr>
-      {% for row in rows %}
-      <tr>{% for col in row %}<td>{{col}}</td>{% endfor %}</tr>
-      {% endfor %}
-    </table></body></html>
+      <h2>Usuarios activos</h2>
+      <table>
+        <tr>
+          <th>Chat ID</th><th>Email</th><th>Tipo</th><th>Plan</th><th>Idioma</th>
+          <th>Grupo</th><th>Ingreso</th><th>Expira</th><th>Restante</th>
+        </tr>
+        {% for row in rows %}
+        <tr>{% for col in row %}<td>{{col}}</td>{% endfor %}</tr>
+        {% endfor %}
+      </table>
+    </body></html>
     """, rows=rows)
 
-# ─────────────────────────────  TELEGRAM WEBHOOK  ─────────────────────────────
+
 @app.route("/telegram-webhook", methods=["GET", "POST"])
 def telegram_webhook():
     if request.method == "GET":
         return "OK", 200
-
     up = request.get_json(force=True)
 
-    # ─────────── 1) Bienvenida automática al entrar al grupo ──────────
+    # Bienvenida en grupos
     if "message" in up and up["message"].get("new_chat_members"):
         chat_id = up["message"]["chat"]["id"]
-
-        for m in up["message"]["new_chat_members"]:
-            if m.get("is_bot"):
-                continue  # ignorar otros bots
-
-            username = m.get("first_name", "")
-            plan_key, lang = None, "ES"
-
-            # Detectar plan/idioma según el ID del grupo
-            for k, p in PLANS.items():
-                if p["group_id_es"] == str(chat_id):
-                    plan_key, lang = k, "ES"
-                    break
-                if p["group_id_en"] == str(chat_id):
-                    plan_key, lang = k, "EN"
-                    break
-
-            stype        = get_sub_type(plan_key) if plan_key else ""
-            stype_label  = TYPE_LABELS.get(stype, stype)
-
+        for new_member in up["message"]["new_chat_members"]:
+            if new_member.get("is_bot"): continue
+            username = new_member.get("first_name", "")
+            plan_key = None
+            lang = "ES"
+            for key, data in PLANS.items():
+                if data["group_id_es"] == str(chat_id):
+                    plan_key = key; lang = "ES"; break
+                if data["group_id_en"] == str(chat_id):
+                    plan_key = key; lang = "EN"; break
+            stype = get_sub_type(plan_key) if plan_key else ""
+            stype_label = TYPE_LABELS.get(stype, stype)
             if lang == "ES":
                 txt = f"""👋 ¡Bienvenido al plan {stype_label}, {username}! ¡Bienvenido al Grupo VIP de Crypto Signal Bot!
 
 📈 Señales de trading en tiempo real | Máxima precisión | Resultados comprobados
-🔹 Accede a señales de alta precisión para BTC, ETH, XRP, BNB y ADA
-🔹 Estrategias para scalping, intradía y swing trading
-🔹 Señales generadas 24/7 según la volatilidad del mercado
 
-📂 Grupo VIP organizado por temas independientes:
-🔄 Renovar Suscripción
-🏆 Análisis de Bitcoin
-🔹 BTC/USDT
-🔹 XRP/USDT
-🔹 BNB/USDT
-🔹 ETH/USDT
-🔹 ADA/USDT
+🔹 Accede a señales de alta precisión para BTC, ETH, XRP, BNB y ADA  
+🔹 Estrategias para scalping, intradía y swing trading  
+🔹 Señales generadas 24/7 según la volatilidad del mercado  
 
-Cada tema funciona como un canal independiente con su propio botón de acceso a la señal.
-A medida que agreguemos nuevas criptomonedas, se irán generando nuevos temas automáticamente para ofrecer acceso rápido y organizado a cada señal.
+📂 Grupo VIP organizado por temas independientes:  
+🔄 Renovar Suscripción  
+🏆 Análisis de Bitcoin  
+🔹 BTC/USDT  
+🔹 XRP/USDT  
+🔹 BNB/USDT  
+🔹 ETH/USDT  
+🔹 ADA/USDT  
 
-🔗 Accede con un solo clic a las señales y gráficos en vivo en nuestra web
+Cada tema funciona como un canal independiente con su propio botón de acceso a la señal.  
+A medida que agreguemos nuevas criptomonedas, se irán generando nuevos temas automáticamente para ofrecer acceso rápido y organizado a cada señal.  
+
+🔗 Accede con un solo clic a las señales y gráficos en vivo en nuestra web  
 🚀 ¡Prepárate para impulsar tu trading con las mejores oportunidades!"""
             else:
                 txt = f"""👋 Welcome to the {stype_label} Plan, {username}! Welcome to the Crypto Signal Bot VIP Group!
 
 📈 Real-Time Trading | Maximum Accuracy | Proven Results
-🔹 Access high-precision signals for BTC, ETH, XRP, BNB and ADA
-🔹 Strategies for scalping, intraday and swing trading
-🔹 Signals generated 24/7 based on market volatility
 
-📂 VIP group organised by separate topics:
-🔄 Renew Subscription
-🏆 Bitcoin Analysis
-🔹 BTC/USDT
-🔹 XRP/USDT
-🔹 BNB/USDT
-🔹 ETH/USDT
-🔹 ADA/USDT
+🔹 Access high-precision signals for BTC, ETH, XRP, BNB, and ADA  
+🔹 Strategies for scalping, intraday, and swing trading  
+🔹 Signals generated 24/7 based on market volatility  
 
-Each topic acts like an independent channel with its own signal-access button.
-As we add new cryptocurrencies, new topics will be generated automatically to provide quick, organised access to each signal.
+📂 VIP group organized by separate topics:  
+🔄 Renew Subscription  
+🏆 Bitcoin Analysis  
+🔹 BTC/USDT  
+🔹 XRP/USDT  
+🔹 BNB/USDT  
+🔹 ETH/USDT  
+🔹 ADA/USDT  
 
-🔗 One-click access to live signals and charts on our website
+Each topic acts like an independent channel with its own signal-access button.  
+As we add new cryptocurrencies, new topics will be generated automatically to provide quick, organized access to each signal.  
+
+🔗 One-click access to live signals and charts on our website  
 🚀 Get ready to boost your trading with the best opportunities!"""
-
-            # Enviar mensaje
             requests.post(
                 f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                json={
-                    "chat_id": chat_id,
-                    "text": txt,
-                    "disable_web_page_preview": True
-                },
-                timeout=10
+                json={"chat_id": chat_id, "text": txt}, timeout=10
             )
         return jsonify({}), 200
 
-    # ─────────── 2) Mensajes de usuario (/start, /misdatos, etc.) ─────
+    # Manejo de mensajes
     if "message" in up:
-        msg = up["message"]; cid = msg["chat"]["id"]
-        text = (msg.get("text") or "").strip()
+        msg  = up["message"]
+        text = msg.get("text", "").strip()
+        cid  = msg.get("chat", {}).get("id")
 
-        # /start sin token → botón idioma
+        # 1) Deep-link sin token: iniciar flujo SendPulse
         if text == "/start":
             kb = {"inline_keyboard":[[
-                {"text":"🌐 Idioma/Language",
-                 "url":"https://t.me/CriptoSignalBotGestion_bot?start=6848494ba35fe4e8f30495ea"}
+                {"text":"🌐 Idioma/Language","url":"https://t.me/CriptoSignalBotGestion_bot?start=6848494ba35fe4e8f30495ea"}
             ]]}
             requests.post(
                 f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
@@ -501,9 +456,9 @@ As we add new cryptocurrencies, new topics will be generated automatically to pr
             )
             return jsonify({}), 200
 
-        # /start misdatos (atajo)
+        # 2) Deep-link misdatos
         if text == "/start misdatos":
-            kb={"inline_keyboard":[
+            kb = {"inline_keyboard":[
                 [{"text":"🇪🇸 Español","callback_data":"misdatos_lang|ES"}],
                 [{"text":"🇺🇸 English","callback_data":"misdatos_lang|EN"}]
             ]}
@@ -527,24 +482,27 @@ Select your language to continue.""",
             )
             return jsonify({}), 200
 
-        # /start {token}
+        # 3) /start con token de registro (original)
         if text.startswith("/start ") and cid:
             token = text.split(maxsplit=1)[1]
-            # padding base64
-            token += "="*((4-len(token)%4)%4)
+            if len(token) % 4:
+                token += "=" * (4 - len(token) % 4)
             try:
                 email = base64.urlsafe_b64decode(token.encode()).decode()
-            except Exception:
-                return jsonify({}),200
+            except:
+                return jsonify({}), 200
+
             users = load_users()
             info  = users.get(email)
-            if not info:                               # token no reconocido
-                return jsonify({}),200
+            if not info:
+                return jsonify({}), 200
+
+            # Guardar chat_id
             info["chat_id"] = cid
             users[email] = info
             save_users(users)
 
-            kb={"inline_keyboard":[[
+            kb = {"inline_keyboard":[[
                 {"text":"🇪🇸 Español","callback_data":f"lang|ES|{email}"},
                 {"text":"🇺🇸 English","callback_data":f"lang|EN|{email}"}
             ]]}
@@ -579,7 +537,7 @@ Select your language to continue.""",
 
             return jsonify({}), 200
 
-                # 4) /misdatos comando manual (original)
+        # 4) /misdatos comando manual (original)
         if text == "/misdatos" and cid:
             kb = {"inline_keyboard":[
                 [{"text":"🇪🇸 Español","callback_data":"misdatos_lang|ES"}],
@@ -757,53 +715,6 @@ Select your language to continue.""",
             )
             return jsonify({}), 200
 
-
-        # --- /misdatos idioma ---
-        if data.startswith("misdatos_lang|"):
-            _, lang = data.split("|",1)
-            # localizar usuario por chat_id
-            email = next((e for e,i in users.items() if i.get("chat_id")==cid), None)
-            info  = users.get(email) if email else None
-            if not info:
-                txt = "No tienes suscripciones." if lang=="ES" else "You have no subscriptions."
-                requests.post(
-                    f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                    json={"chat_id":cid,"text":txt},timeout=10)
-                return jsonify({}),200
-
-            # Construimos respuesta
-            n,a,t = info.get("nombre",""),info.get("apellido",""),info.get("telefono","")
-            header = (f"Hola {n} {a},\n\n*Tus suscripciones activas:*\n"
-                      if lang=="ES"
-                      else f"Hello {n} {a},\n\n*Your active subscriptions:*\n")
-            rep = header
-            keyboard=[]
-            now = datetime.utcnow()
-            for stype, sub in info["suscripciones"].items():
-                plan_key = sub["plan"]; label=TYPE_LABELS[stype]
-                ing = datetime.fromisoformat(sub["ingreso"]).strftime("%Y-%m-%d %H:%M")
-                exp_dt = datetime.fromisoformat(sub["expira"])
-                exp = exp_dt.strftime("%Y-%m-%d %H:%M")
-                delta = exp_dt - now
-                months = delta.days//30
-                days   = delta.days%30
-                hours  = delta.seconds//3600
-                minutes= (delta.seconds%3600)//60
-                plan_name = LABELS.get(plan_key,plan_key)
-                if lang=="ES":
-                    rep+=f"\n• {label}: {plan_name}\n  - Ingreso: {ing}\n  - Expira: {exp}\n  - Restante: {months} m {days} d {hours} h {minutes} min\n"
-                    keyboard.append([{"text":f"🔄 Renovar {label}","callback_data":f"renovar_menu|{stype}"}])
-                else:
-                    rep+=f"\n• {label}: {plan_name}\n  - Start: {ing}\n  - Expires: {exp}\n  - Remaining: {months} m {days} d {hours} h {minutes} min\n"
-                    keyboard.append([{"text":f"🔄 Renew {label}","callback_data":f"renovar_menu|{stype}"}])
-
-            requests.post(
-                f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                json={"chat_id":cid,"text":rep,"parse_mode":"Markdown",
-                      "reply_markup":{"inline_keyboard":keyboard}},
-                timeout=10)
-            return jsonify({}),200
-
         # Sub-menú renovar
         if "callback_query" in up and data.startswith("renovar_menu|"):
             _, stype = data.split("|", 1)
@@ -868,6 +779,6 @@ Select your language to continue.""",
 
     return jsonify({}), 200
 
-# ─────────────────────────────────  MAIN  ──────────────────────────────────────
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    app.run(host="0.0.0.0", port=int(__import__('os').environ.get("PORT", 5000)))
